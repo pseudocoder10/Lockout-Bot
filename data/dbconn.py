@@ -490,6 +490,7 @@ class DbConn:
         curr.execute(query)
         data = curr.fetchall()
         for x in data:
+            
             try:
                 if time.time() - x[4] > TOTAL_TIME:
                     await self.print_results(client, x[5], x)
@@ -500,6 +501,10 @@ class DbConn:
                 sub1 = await self.cf.get_submissions(handle1)
                 sub2 = await self.cf.get_submissions(handle2)
                 status=""
+                guild = client.get_guild(x[0])
+                channel = client.get_channel(x[5])
+                mem1 = guild.get_member(x[1])
+                mem2 = guild.get_member(x[2])
                 problems = x[6].split()
                 for i in range(0, 5):
                     if x[7][i] != '0':
@@ -513,9 +518,13 @@ class DbConn:
                     if time1 <= time2:
                         done = 1
                         status = status + '1'
+                        await channel.send(embed=discord.Embed(description=f"{mem1.mention} has solved the problem worth {(i+1)*100} points", color=discord.Color.blue()))
+
                     else:
                         done = 1
                         status = status + '2'
+                        await channel.send(embed=discord.Embed(description=f"{mem2.mention} has solved the problem worth {(i+1)*100} points", color=discord.Color.blue()))
+
                 query = """
                             UPDATE ongoing
                             SET
@@ -540,10 +549,10 @@ class DbConn:
                     for i in range(0, 5):
                         if status[i] != '0':
                             continue
-                        for x in data:
-                            ppts += f"{(i+1)*100}\n"
-                            pname += f"[{self.get_problem_name(problems[i].split('/')[0], problems[i].split('/')[1])}](https://codeforces.com/problemset/problem/{problems[i]})\n"
-                            prating += f"{(i*100)+x[3]}\n"
+                        
+                        ppts += f"{(i+1)*100}\n"
+                        pname += f"[{self.get_problem_name(problems[i].split('/')[0], problems[i].split('/')[1])}](https://codeforces.com/problemset/problem/{problems[i]})\n"
+                        prating += f"{(i*100)+x[3]}\n"
                     embed = discord.Embed(color=discord.Color.green())
                     embed.set_author(name=f"Current standings \n{handle1} ({a} points) vs ({b} points) {handle2}")
                     embed.add_field(name="Points", value=ppts, inline=True)
@@ -551,6 +560,8 @@ class DbConn:
                     embed.add_field(name="Rating", value=prating, inline=True)
                     embed.set_footer(text=f"Time left: {int(tme/60)} minutes {tme%60} seconds")
                     channel = client.get_channel(x[5])
+                   
+                    
                     await channel.send(embed=embed)
             except Exception as e:
                 print(f"Failed manual update {str(e)}")
@@ -691,18 +702,21 @@ class DbConn:
         resp = []
         c = 0
         for x in data:
-            a = 0
-            b = 0
-            for i in range(0, 5):
-                if x[7][i] == '1':
-                    a += (i+1)*100
-                if x[7][i] == '2':
-                    b += (i+1)*100
-            tme = int(time.time())-x[4]
-            m = int(tme/60)
-            s = tme%60
-            resp.append([str(c), self.get_handle(guild, x[1]), self.get_handle(guild, x[2]), str(x[3]), f"{m}m {s}s", f"{a}-{b}"])
-            c += 1
+            try:
+                a = 0
+                b = 0
+                for i in range(0, 5):
+                    if x[7][i] == '1':
+                        a += (i+1)*100
+                    if x[7][i] == '2':
+                        b += (i+1)*100
+                tme = int(time.time())-x[4]
+                m = int(tme/60)
+                s = tme%60
+                resp.append([str(c), self.get_handle(guild, x[1]), self.get_handle(guild, x[2]), str(x[3]), f"{m}m {s}s", f"{a}-{b}"])
+                c += 1
+            except Exception as e:
+                print(e)		
         return resp
 
     def get_finished(self, guild):
@@ -717,8 +731,12 @@ class DbConn:
         resp = []
         c = 1
         for x in data:
-            handle1 = self.get_handle(guild, x[1])
-            handle2 = self.get_handle(guild, x[2])
+            try:
+                handle1 = self.get_handle(guild, x[1])
+                handle2 = self.get_handle(guild, x[2])
+            except Exception as e:
+                print(e)
+                continue
             tme = x[4]
             m = int(tme / 60)
             s = tme % 60

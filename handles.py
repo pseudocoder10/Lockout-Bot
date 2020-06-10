@@ -9,6 +9,7 @@ import random
 import string
 from random import randint
 from operator import itemgetter
+from discord.ext.commands import cooldown, BucketType, CommandOnCooldown
 
 
 async def send_message(ctx, message):
@@ -68,6 +69,7 @@ class Handles(commands.Cog):
         await ctx.send(embed=Embed(description=f"Handle for user {member.mention} removed successfully", color=Color.green()))
 
     @handle.command(brief="Set your handle yourself")
+    @cooldown(1, 60, BucketType.user)
     async def identify(self, ctx, handle: str=None):
         if not handle:
             await send_message(ctx, "Usage: .handle identify <cf handle>")
@@ -82,10 +84,10 @@ class Handles(commands.Cog):
         data = data[1]
         handle = data['handle']
         res = ''.join(random.choices(string.ascii_uppercase + string.digits, k=15))
-        await send_message(ctx, f"Please change your first name on this [link](https://codeforces.com/settings/social) to `{res}` within 60 seconds")
+        await send_message(ctx, f"Please change your first name on this [link](https://codeforces.com/settings/social) to `{res}` within 60 seconds {ctx.author.mention}")
         await asyncio.sleep(60)
         if res != await self.cf.get_first_name(handle):
-            await send_message(ctx, f"Unable to set handle, please try again")
+            await send_message(ctx, f"Unable to set handle, please try again {ctx.author.mention}")
             return
         rating = 0
         rank = ""
@@ -103,6 +105,13 @@ class Handles(commands.Cog):
         embed.add_field(name='Rating', value=f'{rating}', inline=True)
         embed.set_thumbnail(url=f"https:{data['titlePhoto']}")
         await ctx.send(embed=embed)
+
+    
+    @identify.error
+    async def identify_error(self, ctx, exc):
+        if isinstance(exc, CommandOnCooldown):
+            await ctx.send(embed=discord.Embed(description=f"Slow down!\nThe cooldown of command is **60s**, pls retry after **{exc.retry_after:,.2f}s**", color=discord.Color.red()))
+
 
     @handle.command(brief="Get someone's handle")
     async def get(self, ctx, member: discord.Member):
