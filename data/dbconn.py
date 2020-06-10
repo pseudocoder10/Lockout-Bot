@@ -433,15 +433,28 @@ class DbConn:
         if not problems_1:
             return [False, "Codeforces API Error"]
 
+        problems_1_filt = []
+        for x in problems_1:
+            problems_1_filt.append([x[0], x[2]])
+            problems_1_filt.append([x[0]-1, x[2]])
+            problems_1_filt.append([x[0]+1, x[2]])
+
         problems_2 = await self.cf.get_user_problems(self.get_handle(guild, data[2]))
         if not problems_2:
             return [False, "Codeforces API Error"]
 
+        problems_2_filt = []
+        for x in problems_2:
+            problems_2_filt.append([x[0], x[2]])
+            problems_2_filt.append([x[0] - 1, x[2]])
+            problems_2_filt.append([x[0] + 1, x[2]])
+
         fset = []
         for x in problems:
-            if (x not in problems_1) and (x not in problems_2):
+            if ([x[0], x[2]] not in problems_1_filt) and ([x[0], x[2]] not in problems_2_filt):
                 fset.append(x)
 
+        
         final_questions = []
         for i in range(0, 5):
             rate = data[3]+i*100
@@ -466,7 +479,7 @@ class DbConn:
         curr.close()
 
         print(final_questions)
-        await ctx.send(f"Starting match between <@{data[1]}> and <@{data[2]}>. The match will contain 5 questions and"
+        await ctx.send(f"Starting match between <@{data[1]}> and <@{data[2]}>. The match will contain 5 questions and "
                        "you have around 45-49 minutes to solve them. The first person to solve a problem gets the points for it."
                        "The scores will update automatically every 2 minutes but You can manually update them by typing"
                        "`.match update`. Note that this command can be used atmost once in a minute in a server.")
