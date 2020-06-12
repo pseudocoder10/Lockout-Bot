@@ -66,7 +66,8 @@ class DbConn:
                             p2_id BIGINT,
                             rating INT,
                             time INT, 
-                            channel BIGINT
+                            channel BIGINT,
+                            duration BIGINT
                     )
                     """)
         cmds.append("""
@@ -78,7 +79,8 @@ class DbConn:
                             time INT,
                             channel BIGINT,
                             problems TEXT,
-                            status TEXT
+                            status TEXT,
+                            duration BIGINT
                     )
                     """)
         cmds.append("""
@@ -89,10 +91,10 @@ class DbConn:
                         rating INT,
                         time INT,
                         status TEXT,
-                        result INT
+                        result INT, 
+                        duration BIGINT
                     ) 
                     """)
-
         try:
             curr = self.conn.cursor()
             for x in cmds:
@@ -327,15 +329,15 @@ class DbConn:
         data = curr.fetchone()
         return data[2]
 
-    def add_to_challenge(self, guild, p1, p2, rating, time, channel):
+    def add_to_challenge(self, guild, p1, p2, rating, time, channel, duration):
         query = """
                     INSERT INTO challenge
-                    (guild, p1_id, p2_id, rating, time, channel)
+                    (guild, p1_id, p2_id, rating, time, channel, duration)
                     VALUES
-                    (%s, %s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s, %s)
                 """
         curr = self.conn.cursor()
-        curr.execute(query, (guild, p1, p2, rating, time, channel))
+        curr.execute(query, (guild, p1, p2, rating, time, channel, duration))
         self.conn.commit()
         curr.close()
 
@@ -454,7 +456,8 @@ class DbConn:
             if ([x[0], x[2]] not in problems_1_filt) and ([x[0], x[2]] not in problems_2_filt):
                 fset.append(x)
 
-        
+        print(len(fset))
+
         final_questions = []
         for i in range(0, 5):
             rate = data[3]+i*100
@@ -472,18 +475,18 @@ class DbConn:
         query = """
                     INSERT INTO ongoing
                     VALUES
-                    (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()), data[5], probs, "00000"))
+        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()), data[5], probs, "00000", data[6]))
         self.conn.commit()
         curr.close()
 
         print(final_questions)
         await ctx.send(f"Starting match between <@{data[1]}> and <@{data[2]}>. The match will contain 5 questions and "
-                       "you have around 45-49 minutes to solve them. The first person to solve a problem gets the points for it."
+                       f"you have {data[6]} minutes to solve them. The first person to solve a problem gets the points for it."
                        "The scores will update automatically every 2 minutes but You can manually update them by typing"
                        "`.match update`. Note that this command can be used atmost once in a minute in a server.")
-        return [True, final_questions]
+        return [True, final_questions, data[6]]
 
     async def update_matches(self, client, ctx=None):
         query = ""
@@ -505,7 +508,7 @@ class DbConn:
         for x in data:
             
             try:
-                if time.time() - x[4] > TOTAL_TIME:
+                if time.time() - x[4] > x[8]*60 + 60:
                     await self.print_results(client, x[5], x)
                     continue
                 done = 0
@@ -547,18 +550,19 @@ class DbConn:
                         """
                 curr.execute(query, (status, x[0], x[1]))
                 self.conn.commit()
-                if match_over(status)[0]:
+                if match_over(status)[0] or time.time() - x[4] > x[8]*60:
                     await self.print_results(client, x[5], x)
                 else:
                     if done == 0:
                         continue
+                    await channel.send(f"{mem1.mention} {mem2.mention}, there is an update in standings")
                     a = match_over(status)[1]
                     b = match_over(status)[2]
                     pname = ""
                     prating = ""
                     ppts = ""
                     problems = x[6].split()
-                    tme = TOTAL_TIME - 120 - (int(time.time())-x[4])
+                    tme = x[8]*60 - (int(time.time())-x[4])
                     for i in range(0, 5):
                         if status[i] != '0':
                             continue
@@ -573,7 +577,6 @@ class DbConn:
                     embed.add_field(name="Rating", value=prating, inline=True)
                     embed.set_footer(text=f"Time left: {int(tme/60)} minutes {tme%60} seconds")
                     channel = client.get_channel(x[5])
-                   
                     
                     await channel.send(embed=embed)
             except Exception as e:
@@ -593,6 +596,15 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (x[0], x[1]))
         data = curr.fetchone()
+
+        query = """
+                    DELETE FROM ongoing
+                    WHERE
+                    guild = %s AND p1_id = %s
+                """
+        curr.execute(query, (x[0], x[1]))
+        self.conn.commit()
+
         x = data
         a = 0
         b = 0
@@ -603,35 +615,28 @@ class DbConn:
             if x[7][i] == '2':
                 b += (i+1)*100
         message = ""
-        if a > b:
-            message = f"Match over, {guild.get_member(x[1]).mention} has defeated {guild.get_member(x[2]).mention}\n"
-            message = message + f"Final score {a} - {b}"
-            result = 1
-        elif a < b:
-            message = f"Match over, {guild.get_member(x[2]).mention} has defeated {guild.get_member(x[1]).mention}\n"
-            message = message + f"Final score {a} - {b}"
-            result = 2
-        else:
-            message = f"Match over, its a draw between {guild.get_member(x[1]).mention} and {guild.get_member(x[2]).mention}!\n"
-            message = message + f"Final score {a} - {b}"
-            result = 0
-
-        await channel.send(message)
-
-        query = """
-                    DELETE FROM ongoing
-                    WHERE
-                    guild = %s AND p1_id = %s
-                """
-        curr.execute(query, (x[0], x[1]))
-        self.conn.commit()
-
+        try:
+            if a > b:
+                message = f"Match over, {guild.get_member(x[1]).mention} has defeated {guild.get_member(x[2]).mention}\n"
+                message = message + f"Final score {a} - {b}"
+                result = 1
+            elif a < b:
+                message = f"Match over, {guild.get_member(x[2]).mention} has defeated {guild.get_member(x[1]).mention}\n"
+                message = message + f"Final score {a} - {b}"
+                result = 2
+            else:
+                message = f"Match over, its a draw between {guild.get_member(x[1]).mention} and {guild.get_member(x[2]).mention}!\n"
+                message = message + f"Final score {a} - {b}"
+                result = 0
+            await channel.send(message)
+        except Exception:
+            pass
         query = """
                     INSERT INTO finished
                     VALUES
-                    (%s, %s, %s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time())-data[4], data[7], result))
+        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()) - data[4], data[7], result, data[8]))
         self.conn.commit()
         curr.close()
 

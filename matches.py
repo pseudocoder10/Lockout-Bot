@@ -47,11 +47,29 @@ class Matches(commands.Cog):
         if self.db.is_challenging(ctx.guild.id, member.id) or self.db.is_challenged(ctx.guild.id, member.id) or self.db.in_a_match(ctx.guild.id, member.id):
             await send_message(ctx, "Your opponent is already challenging someone/being challenged/in a match. Pls try again later")
             return
+        if rating not in range(0, 4200):
+            await send_message(ctx, "Invalid Rating Range")
+            return
         rating = rating - rating%100
 
-        await ctx.send(f"{ctx.author.mention} has challenged {member.mention} to a match with problem ratings from {rating} to {rating+400}. Type `.match accept` within 60 seconds to accept")
+        duration = 0
+        try:
+            await ctx.send(f"{ctx.author.mention}, enter the duration of the match in minutes between [5, 180]")
+            message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == ctx.author)
+            if not message.content.isdigit():
+                await ctx.send(f"That's not a valid integer! Match invalidated {ctx.author.mention}")
+                return
+            duration = int(message.content)
+            if duration not in range(5, 181):
+                await ctx.send(f"Enter an integer between **5** and **180**! Match invalidated")
+                return
+        except asyncio.TimeoutError:
+            await ctx.send(f"You took too long to decide! Match invalidated {ctx.author.mention}")
+            return
+
+        await ctx.send(f"{ctx.author.mention} has challenged {member.mention} to a match with problem ratings from {rating} to {rating+400} and lasting {duration} minutes. Type `.match accept` within 60 seconds to accept")
         tme = int(time.time())
-        self.db.add_to_challenge(ctx.guild.id, ctx.author.id, member.id, rating, tme, ctx.channel.id)
+        self.db.add_to_challenge(ctx.guild.id, ctx.author.id, member.id, rating, tme, ctx.channel.id, duration)
         await asyncio.sleep(60)
         if self.db.is_challenging(ctx.guild.id, ctx.author.id, tme):
             await ctx.send(f"{ctx.author.mention} your time to challenge {member.mention} has expired.")
@@ -95,7 +113,7 @@ class Matches(commands.Cog):
         embed.add_field(name="Points", value="100\n200\n300\n400\n500", inline=True)
         embed.add_field(name="Problem Name", value=pname, inline=True)
         embed.add_field(name="Rating", value=prating, inline=True)
-        embed.set_footer(text="Time left: 45 minutes 0 seconds")
+        embed.set_footer(text=f"Time left: {resp[2]} minutes 0 seconds")
         await ctx.send(embed=embed)
 
     @match.command(brief="Invalidate a match (Admin Only)")
