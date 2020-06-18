@@ -7,14 +7,48 @@ from data import dbconn
 from utils import cf_api, paginator
 import discord
 import time
-import random
-import string
-from random import randint
-from operator import itemgetter
+
+from io import BytesIO
+import asyncio
+import matplotlib.pyplot as plt
+import os
 
 
 async def send_message(ctx, message):
     await ctx.send(embed=discord.Embed(description=message, color=discord.Color.gold()))
+
+
+async def plot_gaph(ctx, data, handle):
+    x_axis, y_axis = [], []
+    for i in range(0, len(data)):
+        x_axis.append(i+1)
+        y_axis.append(data[i])
+    ends = [-100000, 1300, 1400, 1500, 1600, 1700, 1750, 1800, 1850, 1900, 100000]
+    colors = ['#CCCCCC', '#77FF77', '#77DDBB', '#AAAAFF', '#FF88FF', '#FFCC88', '#FFBB55', '#FF7777', '#FF3333',
+              '#AA0000']
+    plt.plot(x_axis, y_axis, linestyle='-', marker='o', markersize=3, markerfacecolor='white', markeredgewidth=0.5)
+    ymin, ymax = plt.gca().get_ylim()
+    bgcolor = plt.gca().get_facecolor()
+    for i in range(1, 11):
+        plt.axhspan(ends[i - 1], ends[i], facecolor=colors[i - 1], alpha=0.8, edgecolor=bgcolor, linewidth=0.5)
+    locs, labels = plt.xticks()
+    for loc in locs:
+        plt.axvline(loc, color=bgcolor, linewidth=0.5)
+    plt.ylim(min(1250, ymin-100), max(ymax + 100, 1650))
+    plt.legend(["%s (%d)" % (handle, y_axis[-1])], loc='upper left')
+
+
+    filename = "%s.png" % str(ctx.message.id)
+    plt.savefig(filename)
+    with open(filename, 'rb') as file:
+        discord_file = File(BytesIO(file.read()), filename='plot.png')
+    os.remove(filename)
+    plt.clf()
+    plt.close()
+    embed = Embed(title="Match rating for for %s" % handle, color=Color.blue())
+    embed.set_image(url="attachment://plot.png")
+    embed.set_footer(text="Requested by " + str(ctx.author), icon_url=ctx.author.avatar_url)
+    await ctx.channel.send(embed=embed, file=discord_file)
 
 
 class Matches(commands.Cog):
@@ -236,6 +270,21 @@ class Matches(commands.Cog):
         embed.add_field(name="Average Points", value=f"{int(av)}", inline=False)
         embed.add_field(name="Fastest Time", value=fast, inline=True)
         await ctx.send(embed=embed)
+
+    @match.command(brief="Plot match rating")
+    async def rating(self, ctx, member: discord.Member=None):
+        if member is None:
+            member = ctx.author
+        data = self.db.get_match_rating(ctx.guild.id, member.id)
+        try:
+            self.db.get_handle(ctx.guild.id, member.id)
+        except Exception:
+            await send_message(ctx, f"Handle for user {member.mention} not set")
+            return
+        if len(data) == 0:
+            await ctx.send(embed=discord.Embed(description=f"User {member.mention} is unrated"))
+            return
+        await plot_gaph(ctx, data, self.db.get_handle(ctx.guild.id, member.id))
 
 
 def setup(client):

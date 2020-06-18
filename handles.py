@@ -52,6 +52,7 @@ class Handles(commands.Cog):
             rating = data['rating']
             rank = data['rank']
         self.db.add_handle(ctx.guild.id, member.id, handle, rating)
+        self.db.add_rated_user(ctx.guild.id, member.id)
         embed = discord.Embed(description=f'Handle for user {member.mention} successfully set to [{handle}](https://codeforces.com/profile/{handle})',
                               color=Color(randint(0, 0xFFFFFF)))
         embed.add_field(name='Rank', value=f'{rank}', inline=True)
@@ -99,19 +100,18 @@ class Handles(commands.Cog):
             rating = data['rating']
             rank = data['rank']
         self.db.add_handle(ctx.guild.id, member.id, handle, rating)
+        self.db.add_rated_user(ctx.guild.id, member.id)
         embed = discord.Embed(description=f'Handle for user {member.mention} successfully set to [{handle}](https://codeforces.com/profile/{handle})',
                               color=Color(randint(0, 0xFFFFFF)))
         embed.add_field(name='Rank', value=f'{rank}', inline=True)
         embed.add_field(name='Rating', value=f'{rating}', inline=True)
         embed.set_thumbnail(url=f"https:{data['titlePhoto']}")
         await ctx.send(embed=embed)
-
     
     @identify.error
     async def identify_error(self, ctx, exc):
         if isinstance(exc, CommandOnCooldown):
             await ctx.send(embed=discord.Embed(description=f"Slow down!\nThe cooldown of command is **60s**, pls retry after **{exc.retry_after:,.2f}s**", color=discord.Color.red()))
-
 
     @handle.command(brief="Get someone's handle")
     async def get(self, ctx, member: discord.Member):

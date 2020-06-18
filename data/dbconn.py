@@ -95,6 +95,13 @@ class DbConn:
                         duration BIGINT
                     ) 
                     """)
+        cmds.append("""
+                        CREATE TABLE IF NOT EXISTS rating(
+                        guild BIGINT,
+                        id BIGINT,
+                        rating BIGINT
+                    )
+                    """)
         try:
             curr = self.conn.cursor()
             for x in cmds:
@@ -640,6 +647,22 @@ class DbConn:
         self.conn.commit()
         curr.close()
 
+        pp = result
+        if pp == 2:
+            pp = 0
+        elif pp== 0:
+            pp = 0.5
+        elif pp>2:
+            return
+        rating1 = self.get_match_rating(data[0], data[1])[-1]
+        rating2 = self.get_match_rating(data[0], data[2])[-1]
+        data1 = calc_rating(self.get_match_rating(data[0], data[1])[-1], self.get_match_rating(x[0], data[2])[-1], pp, 1 - pp)
+        self.add_rating_update(data[0], data[1], data1[0])
+        self.add_rating_update(data[0], data[2], data1[1])
+        embed = discord.Embed(description=f"<@{data[1]}> {rating1} -> {data1[0]}\n<@{data[2]}> {rating2} -> {data1[1]}", color=discord.Color.blurple())
+        embed.set_author(name="Rating changes")
+        await channel.send(embed=embed)
+
     def show_problems(self, guild, id):
         query = """
                     SELECT * FROM ongoing
@@ -792,6 +815,51 @@ class DbConn:
         curr.close()
         return data
 
+    def get_match_rating(self, guild, id):
+        query = """
+                    SELECT rating FROM rating
+                    WHERE
+                    guild = %s AND id = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, id))
+        data = curr.fetchall()
+        curr.close()
+        data1 = [x[0] for x in data]
+        return data1
+
+    def add_rating_update(self, guild, id, rating):
+        query = """
+                    INSERT INTO rating
+                    VALUES
+                    (%s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, id, rating))
+        self.conn.commit()
+        curr.close()
+
+    def add_rated_user(self, guild, id):
+        query = """
+                    SELECT * FROM rating
+                    WHERE
+                    guild = %s AND id = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, id))
+        data = curr.fetchall()
+        if len(data) > 0:
+            return
+        query = """
+                    INSERT INTO rating
+                    VALUES
+                    (%s, %s, %s)
+                """
+        curr.execute(query, (guild, id, 1500))
+        self.conn.commit()
+        curr.close()
+
+
 def match_over(status):
     a = 0
     b = 0
@@ -814,3 +882,11 @@ def get_solve_time(problem, sub):
         if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "OK":
             return x['creationTimeSeconds']
     return 10000000000
+
+
+def calc_rating(rate1, rate2, c1, c2):
+    p1 = 1/(1+10**((rate2-rate1)/400))
+    p2 = 1/(1+10**((rate1-rate2)/400))
+
+    delt = 80*(c1 - p1)
+    return [int(rate1 + delt), int(rate2 - delt)]
