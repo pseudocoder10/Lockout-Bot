@@ -97,6 +97,7 @@ class DbConn:
                     """)
         cmds.append("""
                         CREATE TABLE IF NOT EXISTS rating(
+                        idx SERIAL,
                         guild BIGINT,
                         id BIGINT,
                         rating BIGINT
@@ -439,21 +440,21 @@ class DbConn:
         problems = self.get_problems()
 
         problems_1 = await self.cf.get_user_problems(self.get_handle(guild, data[1]))
-        if not problems_1:
+        if not problems_1[0]:
             return [False, "Codeforces API Error"]
 
         problems_1_filt = []
-        for x in problems_1:
+        for x in problems_1[1]:
             problems_1_filt.append([x[0], x[2]])
             problems_1_filt.append([x[0]-1, x[2]])
             problems_1_filt.append([x[0]+1, x[2]])
 
         problems_2 = await self.cf.get_user_problems(self.get_handle(guild, data[2]))
-        if not problems_2:
+        if not problems_2[0]:
             return [False, "Codeforces API Error"]
 
         problems_2_filt = []
-        for x in problems_2:
+        for x in problems_2[1]:
             problems_2_filt.append([x[0], x[2]])
             problems_2_filt.append([x[0] - 1, x[2]])
             problems_2_filt.append([x[0] + 1, x[2]])
@@ -820,6 +821,8 @@ class DbConn:
                     SELECT rating FROM rating
                     WHERE
                     guild = %s AND id = %s
+                    ORDER BY
+                    idx ASC
                 """
         curr = self.conn.cursor()
         curr.execute(query, (guild, id))
@@ -832,7 +835,7 @@ class DbConn:
         query = """
                     INSERT INTO rating
                     VALUES
-                    (%s, %s, %s)
+                    (DEFAULT, %s, %s, %s)
                 """
         curr = self.conn.cursor()
         curr.execute(query, (guild, id, rating))
@@ -853,12 +856,47 @@ class DbConn:
         query = """
                     INSERT INTO rating
                     VALUES
-                    (%s, %s, %s)
+                    (DEFAULT, %s, %s, %s)
                 """
         curr.execute(query, (guild, id, 1500))
         self.conn.commit()
         curr.close()
 
+    def get_ranklist(self, ctx):
+        data = []
+        query = """
+                    SELECT guild, id, rating FROM rating
+                    WHERE
+                    guild = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (ctx.guild.id, ))
+        resp = curr.fetchall()
+        curr.close()
+        resp.reverse()
+        done = []
+        for x in resp:
+            try:
+                if x[1] in done:
+                    continue
+                data1 = self.get_match_rating(ctx.guild.id, x[1])
+                if len(data1) <= 1:
+                    continue
+                done.append(x[1])
+                data.append([ctx.guild.get_member(x[1]).name, x[2]])
+            except Exception:
+                print("User not in server <printing ranklist>")
+        return data
+
+    def get_count(self, table):
+        query = f"""
+                    SELECT COUNT(*) FROM {table}
+                """
+        curr = self.conn.cursor()
+        curr.execute(query)
+        data = curr.fetchone()
+        curr.close()
+        return data[0]
 
 def match_over(status):
     a = 0
@@ -888,5 +926,5 @@ def calc_rating(rate1, rate2, c1, c2):
     p1 = 1/(1+10**((rate2-rate1)/400))
     p2 = 1/(1+10**((rate1-rate2)/400))
 
-    delt = 80*(c1 - p1)
+    delt = int(80*(c1 - p1))
     return [int(rate1 + delt), int(rate2 - delt)]

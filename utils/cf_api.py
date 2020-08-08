@@ -46,7 +46,7 @@ class CodeforcesAPI:
         self.url = f"https://codeforces.com/api/user.status?handle={handle}"
         response = await self.api_response()
         if not response:
-            return False
+            return [False]
         try:
             data = []
             for x in response['result']:
@@ -54,9 +54,9 @@ class CodeforcesAPI:
                 if 'rating' not in y:
                     continue
                 data.append((y['contestId'], y['index'], y['name'], y['type'], y['rating'], None))
-            return data
-        except Exception:
-            return False
+            return [True, data]
+        except Exception as e:
+            return [False]
 
     async def get_submissions(self, handle):
         self.url = f"https://codeforces.com/api/user.status?handle={handle}&from=1&count=10"

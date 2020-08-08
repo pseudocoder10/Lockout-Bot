@@ -1,12 +1,11 @@
-import asyncio
-
-from discord import Embed, Color, Member, utils, File
+from discord import Embed, Color, File
 from discord.ext import commands
 from discord.ext.commands import cooldown, BucketType, CommandOnCooldown
 from data import dbconn
 from utils import cf_api, paginator
 import discord
 import time
+from operator import itemgetter
 
 from io import BytesIO
 import asyncio
@@ -57,9 +56,28 @@ class Matches(commands.Cog):
         self.db = dbconn.DbConn()
         self.cf = cf_api.CodeforcesAPI()
 
-    @commands.group(brief='Commands related to matches', invoke_without_command=True)
+    def make_match_embed(self, ctx):
+        desc = "Information about Matches related commands! **[use .match <command>]**\n\n"
+        match = self.client.get_command('match')
+
+        for cmd in match.commands:
+            desc += f"`{cmd.name}`: **{cmd.brief}**\n"
+        embed = discord.Embed(description=desc, color=discord.Color.dark_magenta())
+        embed.set_author(name="Lockout commands help", icon_url=ctx.me.avatar_url)
+        embed.set_footer(
+            text="Use the prefix . before each command. For detailed usage about a particular command, type .help match <command>")
+        embed.add_field(name="GitHub repository", value=f"[GitHub](https://github.com/pseudocoder10/Lockout-Bot)",
+                        inline=True)
+        embed.add_field(name="Bot Invite link",
+                        value=f"[Invite](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot)",
+                        inline=True)
+        embed.add_field(name="Support Server", value=f"[Server](https://discord.gg/xP2UPUn)",
+                        inline=True)
+        return embed
+
+    @commands.group(brief='Commands related to matches. Type .match for more details', invoke_without_command=True)
     async def match(self, ctx):
-        await ctx.send_help(ctx.command)
+        await ctx.send(embed=self.make_match_embed(ctx))
 
     @match.command(brief="Challenge someone to a match")
     async def challenge(self, ctx, member:discord.Member, rating: int=None):
@@ -281,10 +299,21 @@ class Matches(commands.Cog):
         except Exception:
             await send_message(ctx, f"Handle for user {member.mention} not set")
             return
-        if len(data) == 0:
-            await ctx.send(embed=discord.Embed(description=f"User {member.mention} is unrated"))
+        if len(data) <= 1:
+            await ctx.send(embed=discord.Embed(description=f"User {member.mention} is unrated! Compete in matches to become rated"))
             return
-        await plot_gaph(ctx, data, self.db.get_handle(ctx.guild.id, member.id))
+        await plot_gaph(ctx, data[1:], self.db.get_handle(ctx.guild.id, member.id))
+
+    @match.command(brief="Show match ratings of all the users")
+    async def ranklist(self, ctx):
+        data = self.db.get_ranklist(ctx)
+        print(data)
+        if len(data) == 0:
+            await send_message(ctx, "No rated user in the server")
+            return
+        data = sorted(data, key=itemgetter(1), reverse=True)
+        data = [[x[0], str(x[1])] for x in data]
+        await paginator.Paginator(data, ["User", "Rating"], f"Match Ratings", 10).paginate(ctx, self.client)
 
 
 def setup(client):

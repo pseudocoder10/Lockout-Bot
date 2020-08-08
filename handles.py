@@ -22,11 +22,29 @@ class Handles(commands.Cog):
         self.db = dbconn.DbConn()
         self.cf = cf_api.CodeforcesAPI()
 
-    @commands.group(brief='Commands related to handles', invoke_without_command=True)
-    async def handle(self, ctx):
-        await ctx.send_help(ctx.command)
+    def make_handle_embed(self, ctx):
+        desc = "Information about Handle related commands! **[use .handle <command>]**\n\n"
+        handle = self.client.get_command('handle')
+        for cmd in handle.commands:
+            desc += f"`{cmd.name}`: **{cmd.brief}**\n"
+        embed = discord.Embed(description=desc, color=discord.Color.dark_magenta())
+        embed.set_author(name="Lockout commands help", icon_url=ctx.me.avatar_url)
+        embed.set_footer(
+            text="Use the prefix . before each command. For detailed usage about a particular command, type .help <command>")
+        embed.add_field(name="GitHub repository", value=f"[GitHub](https://github.com/pseudocoder10/Lockout-Bot)",
+                        inline=True)
+        embed.add_field(name="Bot Invite link",
+                        value=f"[Invite](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot)",
+                        inline=True)
+        embed.add_field(name="Support Server", value=f"[Server](https://discord.gg/xP2UPUn)",
+                        inline=True)
+        return embed
 
-    @handle.command(brief="Set your handle")
+    @commands.group(brief='Commands related to handles! Type .handle for more details', invoke_without_command=True)
+    async def handle(self, ctx):
+        await ctx.send(embed=self.make_handle_embed(ctx))
+
+    @handle.command(brief="Set someone's handle (Admin only)")
     @commands.has_any_role('Admin', 'Moderator')
     async def set(self, ctx, member: discord.Member, handle: str=None):
         if handle is None:
@@ -60,7 +78,7 @@ class Handles(commands.Cog):
         embed.set_thumbnail(url=f"https:{data['titlePhoto']}")
         await ctx.send(embed=embed)
 
-    @handle.command(brief="Remove someone's handle")
+    @handle.command(brief="Remove someone's handle (Admin only)")
     @commands.has_any_role('Admin', 'Moderator')
     async def remove(self, ctx, member: discord.Member):
         if not self.db.handle_in_db(ctx.guild.id, member.id):

@@ -7,10 +7,15 @@ from data import dbconn
 import time, asyncio
 from datetime import datetime
 
+from humanfriendly import format_timespan as timeez
+from discord.ext.commands import CommandNotFound, CommandOnCooldown, MissingPermissions, MissingRequiredArgument, \
+    BadArgument, MissingAnyRole
+
 from utils import cf_api
 
 client = Bot(description="A Discord bot to compete with each other using codeforces problems",
              command_prefix=when_mentioned_or("."))
+uptime = 0
 
 db = dbconn.DbConn()
 api = cf_api.CodeforcesAPI()
@@ -20,6 +25,8 @@ api = cf_api.CodeforcesAPI()
 async def on_ready():
     await client.change_presence(activity=Game(name="in matches | .help"))
     print("Ready")
+    global uptime
+    uptime = int(time.time())
     update_matches.start()
 
 
@@ -46,7 +53,58 @@ async def updateratings(ctx):
     await ctx.send("Ratings updated")
 
 
-@tasks.loop(seconds=120)
+@client.event
+async def on_command_error(ctx: commands.Context, error: Exception):
+    if isinstance(error, CommandNotFound):
+        pass
+
+    elif isinstance(error, CommandOnCooldown):
+        pass
+
+    elif isinstance(error, BadArgument) or isinstance(error, MissingRequiredArgument):
+        command = ctx.command
+        usage = f".{str(command)} "
+        params = []
+        for key, value in command.params.items():
+            if key not in ['self', 'ctx']:
+                params.append(f"[{key}]" if "NoneType" in str(value) else f"<{key}>")
+        usage += ' '.join(params)
+        await ctx.send(f"Usage: **{usage}**")
+
+    elif isinstance(error, MissingPermissions) or isinstance(error, MissingAnyRole):
+        await ctx.send(f"{str(error)}")
+
+    else:
+        print(f"{ctx.author.id} {ctx.guild.id} {ctx.message.content}")
+        print(error)
+
+
+@client.command()
+async def botinfo(ctx):
+    handles = db.get_count('handles')
+    matches = db.get_count('finished') 
+    guilds = len(client.guilds)
+    uptime_ = int(time.time()) - uptime
+
+    embed = discord.Embed(description="A discord bot to compete with others on codeforces in a Lockout format", color=discord.Color.magenta())
+    embed.set_author(name="Bot Stats", icon_url=client.user.avatar_url)
+    embed.set_thumbnail(url=client.user.avatar_url)
+
+    embed.add_field(name="Handles Set", value=f"**{handles}**", inline=True)
+    embed.add_field(name="Matches played", value=f"**{matches}**", inline=True)
+    embed.add_field(name="Servers", value=f"**{guilds}**", inline=True)
+    embed.add_field(name="Uptime", value=f"**{timeez(uptime_)}**", inline=False)
+    embed.add_field(name="GitHub repository", value=f"[GitHub](https://github.com/pseudocoder10/Lockout-Bot)", inline=True)
+    embed.add_field(name="Bot Invite link", value=f"[Invite](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot)",
+                    inline=True)
+    embed.add_field(name="Support Server", value=f"[Server](https://discord.gg/xP2UPUn)",
+                    inline=True)
+
+    await ctx.send(embed=embed)
+
+
+
+@tasks.loop(seconds=60)
 async def update_matches():
     print(f"Attempting to auto update matches at {datetime.fromtimestamp(int(time.time())).strftime('%A, %B %d, %Y %I:%M:%S')}")
     try:
@@ -58,6 +116,7 @@ async def update_matches():
 if __name__ == "__main__":
     client.load_extension("handles")
     client.load_extension("matches")
+    client.load_extension("help")
 
 token = environ.get('BOT_TOKEN')
 if not token:
