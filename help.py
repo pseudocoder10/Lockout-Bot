@@ -14,7 +14,7 @@ class Help(commands.Cog):
         self.client.remove_command("help")
 
     def make_help_embed(self, ctx):
-        desc = "Information about commands are given below! \n\n"
+        desc = "Information about commands are given below!\nFor general information about the bot,  type `.botinfo`\nThe bot is public so you can invite it to your own server by clicking [here](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot) \n\n"
         handle = self.client.get_command('handle')
         match = self.client.get_command('match')
 

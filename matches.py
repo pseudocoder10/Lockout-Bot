@@ -85,7 +85,7 @@ class Matches(commands.Cog):
             await send_message(ctx, "Pls specify a rating to before challenging. Example: `.match challenge @bhavya 1800`")
             return
         if member.id == ctx.author.id:
-            await send_message(ctx, "You cannot challenge yourself dumbass!!")
+            await send_message(ctx, "You cannot challenge yourself!!")
             return
         if not self.db.handle_in_db(ctx.guild.id, ctx.author.id):
             await send_message(ctx, "Set your handle first before challenging someone")
@@ -170,12 +170,27 @@ class Matches(commands.Cog):
 
     @match.command(brief="Invalidate a match (Admin Only)")
     @commands.has_any_role('Admin', 'Moderator')
-    async def invalidate(self, ctx, member: discord.Member):
+    async def _invalidate(self, ctx, member: discord.Member):
         if not self.db.in_a_match(ctx.guild.id, member.id):
             await send_message(ctx, f"User {member.mention} is not in a match.")
             return
         self.db.delete_match(ctx.guild.id, member.id)
         await ctx.send(embed=discord.Embed(description="Match has been invalidated", color=discord.Color.green()))
+
+    @match.command(brief="Invalidate your match", aliases=["forfeit", "cancel"])
+    async def invalidate(self, ctx):
+        if not self.db.in_a_match(ctx.guild.id, ctx.author.id):
+            await send_message(ctx, f"User {ctx.author.mention} is not in a match.")
+            return
+        opponent = ctx.guild.get_member(self.db.get_opponent(ctx.guild.id, ctx.author.id))
+        await ctx.send(f"{opponent.mention} you opponent {ctx.author.mention} has proposed to forfeit the match, type `yes` within 30 seconds to accept")
+
+        try:
+            message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == opponent and message.content.lower() == 'yes')
+            self.db.delete_match(ctx.guild.id, ctx.author.id)
+            await ctx.send(embed=discord.Embed(description=f"{ctx.author.mention} {opponent.mention}, match has been invalidated", color=discord.Color.green()))
+        except asyncio.TimeoutError:
+            await ctx.send(f"{ctx.author.mention} your opponent didn't respond in time")
 
     @match.command(brief="Give victory to someone (Admin Only)")
     @commands.has_any_role('Admin', 'Moderator')

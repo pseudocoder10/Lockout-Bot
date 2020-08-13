@@ -496,6 +496,20 @@ class DbConn:
                        "`.match update`. Note that this command can be used atmost once in a minute in a server.")
         return [True, final_questions, data[6]]
 
+    def get_opponent(self, guild, id):
+        query = """
+                    SELECT p1_id, p2_id FROM ongoing
+                    WHERE
+                    guild = %s AND (p1_id = %s OR p2_id = %s)                     
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, id, id))
+        data = curr.fetchone()
+        if data[0] == id:
+            return data[1]
+        else:
+            return data[0]
+
     async def update_matches(self, client, ctx=None):
         query = ""
         if ctx is None:
