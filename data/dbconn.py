@@ -882,6 +882,8 @@ class DbConn:
                     SELECT guild, id, rating FROM rating
                     WHERE
                     guild = %s
+                    ORDER BY
+                    idx ASC
                 """
         curr = self.conn.cursor()
         curr.execute(query, (ctx.guild.id, ))
