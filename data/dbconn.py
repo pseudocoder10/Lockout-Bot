@@ -530,10 +530,8 @@ class DbConn:
         for x in data:
             
             try:
-                if time.time() - x[4] > x[8]*60 + 60:
-                    await self.print_results(client, x[5], x)
-                    continue
                 done = 0
+                judging = False
                 handle1 = self.get_handle(x[0], x[1])
                 handle2 = self.get_handle(x[0], x[2])
                 sub1 = await self.cf.get_submissions(handle1)
@@ -550,19 +548,26 @@ class DbConn:
                         continue
                     time1 = get_solve_time(problems[i], sub1)
                     time2 = get_solve_time(problems[i], sub2)
-                    if time1 == 10000000000 and time2 == 10000000000:
+                    judging = judging | is_pending(problems[i], sub1) | is_pending(problems[i], sub2)
+                    if time1 > x[4] + x[8]*60 and time2 > x[4] + x[8]*60:
                         status = status + '0'
                         continue
-                    if time1 <= time2:
+                    if time1 < time2 and time1 <= x[4] + x[8]*60:
                         done = 1
                         status = status + '1'
                         await channel.send(embed=discord.Embed(description=f"{mem1.mention} has solved the problem worth {(i+1)*100} points", color=discord.Color.blue()))
 
-                    else:
+                    elif time1 > time2 and time2 <= x[4] + x[8]*60:
                         done = 1
                         status = status + '2'
                         await channel.send(embed=discord.Embed(description=f"{mem2.mention} has solved the problem worth {(i+1)*100} points", color=discord.Color.blue()))
 
+                    elif time1 == time2 and time1 <= x[4] + x[8]*60:
+                        done = 1
+                        status = status + '3'
+                        await channel.send(embed=discord.Embed(
+                            description=f"Both {mem1.mention} and {mem2.mention} have solved the problem worth {(i + 1) * 100} points at the same time",
+                            color=discord.Color.blue()))
                 query = """
                             UPDATE ongoing
                             SET
@@ -572,7 +577,7 @@ class DbConn:
                         """
                 curr.execute(query, (status, x[0], x[1]))
                 self.conn.commit()
-                if match_over(status)[0] or time.time() - x[4] > x[8]*60:
+                if (match_over(status)[0] or time.time() - x[4] > x[8]*60 or all_done(status)) and not judging:
                     await self.print_results(client, x[5], x)
                 else:
                     if done == 0:
@@ -588,7 +593,7 @@ class DbConn:
                     for i in range(0, 5):
                         if status[i] != '0':
                             continue
-                        
+
                         ppts += f"{(i+1)*100}\n"
                         pname += f"[{self.get_problem_name(problems[i].split('/')[0], problems[i].split('/')[1])}](https://codeforces.com/problemset/problem/{problems[i]})\n"
                         prating += f"{(i*100)+x[3]}\n"
@@ -599,7 +604,7 @@ class DbConn:
                     embed.add_field(name="Rating", value=prating, inline=True)
                     embed.set_footer(text=f"Time left: {int(tme/60)} minutes {tme%60} seconds")
                     channel = client.get_channel(x[5])
-                    
+
                     await channel.send(embed=embed)
             except Exception as e:
                 print(f"Failed manual update {str(e)}")
@@ -636,6 +641,9 @@ class DbConn:
                 a += (i+1)*100
             if x[7][i] == '2':
                 b += (i+1)*100
+            if x[7][i] == '3':
+                a += (i+1)*50
+                b += (i+1)*50
         message = ""
         try:
             if a > b:
@@ -766,13 +774,16 @@ class DbConn:
                         a += (i+1)*100
                     if x[7][i] == '2':
                         b += (i+1)*100
+                    if x[7][i] == '3':
+                        a += (i + 1) * 50
+                        b += (i + 1) * 50
                 tme = int(time.time())-x[4]
                 m = int(tme/60)
                 s = tme%60
                 resp.append([str(c), self.get_handle(guild, x[1]), self.get_handle(guild, x[2]), str(x[3]), f"{m}m {s}s", f"{a}-{b}"])
                 c += 1
             except Exception as e:
-                print(e)		
+                print(e)
         return resp
 
     def get_finished(self, guild):
@@ -803,6 +814,9 @@ class DbConn:
                     a += (i + 1) * 100
                 if x[5][i] == '2':
                     b += (i + 1) * 100
+                if x[5][i] == '3':
+                    a += (i + 1) * 50
+                    b += (i + 1) * 50
             result = ""
             if x[6] == 0:
                 result = f"Draw {a}-{b}"
@@ -922,6 +936,9 @@ def match_over(status):
             a += (i+1)*100
         if status[i] == '2':
             b += (i+1)*100
+        if status[i] == '3':
+            a += (i+1)*50
+            b += (i+1)*50
     if a >= 800 or b >= 800:
         return [True, a, b]
     else:
@@ -932,10 +949,27 @@ def get_solve_time(problem, sub):
     c_id = int(problem.split('/')[0])
     idx = problem.split('/')[1]
     sub.reverse()
+    ans = 10000000000
     for x in sub:
         if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "OK":
-            return x['creationTimeSeconds']
-    return 10000000000
+            ans = min(ans, x['creationTimeSeconds'])
+    return ans
+
+def is_pending(problem, sub):
+    c_id = int(problem.split('/')[0])
+    idx = problem.split('/')[1]
+    sub.reverse()
+    for x in sub:
+        if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "TESTING":
+            return True
+    return False
+
+
+def all_done(status):
+    for i in status:
+        if i == '0':
+            return False
+    return True
 
 
 def calc_rating(rate1, rate2, c1, c2):
