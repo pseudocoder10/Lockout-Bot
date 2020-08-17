@@ -92,9 +92,11 @@ class Handles(commands.Cog):
     async def identify(self, ctx, handle: str=None):
         if not handle:
             await send_message(ctx, "Usage: .handle identify <cf handle>")
+            ctx.command.reset_cooldown(ctx)
             return
         if self.db.handle_in_db(ctx.guild.id, ctx.author.id):
             await send_message(ctx, "Your handle is already set, ask an admin or mod to remove it first and try again.")
+            ctx.command.reset_cooldown(ctx)
             return
         data = await self.cf.check_handle(handle)
         if not data[0]:
