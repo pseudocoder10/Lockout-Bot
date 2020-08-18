@@ -445,9 +445,7 @@ class DbConn:
 
         problems_1_filt = []
         for x in problems_1[1]:
-            problems_1_filt.append([x[0], x[2]])
-            problems_1_filt.append([x[0]-1, x[2]])
-            problems_1_filt.append([x[0]+1, x[2]])
+            problems_1_filt.append(x[2])
 
         problems_2 = await self.cf.get_user_problems(self.get_handle(guild, data[2]))
         if not problems_2[0]:
@@ -455,13 +453,11 @@ class DbConn:
 
         problems_2_filt = []
         for x in problems_2[1]:
-            problems_2_filt.append([x[0], x[2]])
-            problems_2_filt.append([x[0] - 1, x[2]])
-            problems_2_filt.append([x[0] + 1, x[2]])
+            problems_2_filt.append(x[2])
 
         fset = []
         for x in problems:
-            if ([x[0], x[2]] not in problems_1_filt) and ([x[0], x[2]] not in problems_2_filt):
+            if (x[2] not in problems_1_filt) and (x[2] not in problems_2_filt):
                 fset.append(x)
 
         print(len(fset))
@@ -490,9 +486,9 @@ class DbConn:
         curr.close()
 
         print(final_questions)
-        await ctx.send(f"Starting match between <@{data[1]}> and <@{data[2]}>. The match will contain 5 questions and "
+        await ctx.send(f"Starting match between <@{data[1]}> and <@{data[2]}>. The match will contain 5 tasks and "
                        f"you have {data[6]} minutes to solve them. The first person to solve a problem gets the points for it."
-                       "The scores will update automatically every 2 minutes but You can manually update them by typing"
+                       "The scores will update automatically every 1 minute but You can manually update them by typing"
                        "`.match update`. Note that this command can be used atmost once in a minute in a server.")
         return [True, final_questions, data[6]]
 
