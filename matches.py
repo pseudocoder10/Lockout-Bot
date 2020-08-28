@@ -211,14 +211,23 @@ class Matches(commands.Cog):
         await paginator.Paginator(data, ["S.No", "Handle1", "Handle2", "Rating", "Time spent", "Points"], f"Ongoing matches", 10).paginate(ctx, self.client)
 
     @match.command(brief="Show recent matches")
-    async def recent(self, ctx):
-        data = self.db.get_finished(ctx.guild.id)
-        if len(data) == 0:
-            await send_message(ctx, "No ongoing matches")
-            return
-        data.reverse()
-        await paginator.Paginator(data, ["S.No", "Handle1", "Handle2", "Rating", "Duration", "Result"],
-                                  f"Recent Matches", 10).paginate(ctx, self.client)
+    async def recent(self, ctx, member: discord.Member=None):
+        if not member:
+            data = self.db.get_finished(ctx.guild.id)
+            if len(data) == 0:
+                await send_message(ctx, "No recent matches")
+                return
+            data.reverse()
+            await paginator.Paginator(data, ["S.No", "Handle1", "Handle2", "Rating", "Duration", "Result"],
+                                      f"Recent Matches", 10).paginate(ctx, self.client)
+        else:
+            data = self.db.get_user_finished(ctx.guild.id, member.id)
+            if len(data) == 0:
+                await send_message(ctx, f"No recent matches played by {member.name}")
+                return
+            data.reverse()
+            await paginator.Paginator(data, ["S.No", "Handle1", "Handle2", "Rating", "Duration", "Result"],
+                                      f"Recent Matches played by {member.name}", 10).paginate(ctx, self.client)
 
     @match.command(brief="Show problems left from your ongoing match")
     async def problems(self, ctx, member: discord.Member=None):

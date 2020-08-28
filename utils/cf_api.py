@@ -59,7 +59,7 @@ class CodeforcesAPI:
             return [False]
 
     async def get_submissions(self, handle):
-        self.url = f"https://codeforces.com/api/user.status?handle={handle}&from=1&count=10"
+        self.url = f"https://codeforces.com/api/user.status?handle={handle}&from=1&count=50"
         response = await self.api_response()
         if not response:
             return False

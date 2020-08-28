@@ -6,7 +6,7 @@ from utils import cf_api
 import time
 from datetime import datetime
 import asyncio
-import string
+import json
 
 
 async def send_message(ctx, message, color):
@@ -23,12 +23,19 @@ def is_nonstandard(name):
     return False
 
 
+def author_list():
+    with open('./data/authors.json') as f:
+        data = json.load(f)
+    return data
+
+
 TOTAL_TIME = 45*60 + 120
 
 
 class DbConn:
     def __init__(self):
         self.cf = cf_api.CodeforcesAPI()
+        self.authors = author_list()
         self.conn = psycopg2.connect(database="", user="", password="", host="127.0.0.1", port="5432")
         print("Opened database successfully")
         self.make_tables()
@@ -420,6 +427,14 @@ class DbConn:
         else:
             return False
 
+    def is_an_author(self, id, handles):
+        if str(id) not in self.authors:
+            return True
+        for x in handles:
+            if x in self.authors[str(id)]:
+                return True
+        return False
+
     async def add_to_ongoing(self, ctx, guild, id):
         query = """
                     SELECT * FROM challenge
@@ -439,7 +454,9 @@ class DbConn:
 
         problems = self.get_problems()
 
-        problems_1 = await self.cf.get_user_problems(self.get_handle(guild, data[1]))
+        handle1, handle2 = self.get_handle(guild, data[1]), self.get_handle(guild, data[2])
+
+        problems_1 = await self.cf.get_user_problems(handle1)
         if not problems_1[0]:
             return [False, "Codeforces API Error"]
 
@@ -447,7 +464,7 @@ class DbConn:
         for x in problems_1[1]:
             problems_1_filt.append(x[2])
 
-        problems_2 = await self.cf.get_user_problems(self.get_handle(guild, data[2]))
+        problems_2 = await self.cf.get_user_problems(handle2)
         if not problems_2[0]:
             return [False, "Codeforces API Error"]
 
@@ -457,7 +474,7 @@ class DbConn:
 
         fset = []
         for x in problems:
-            if (x[2] not in problems_1_filt) and (x[2] not in problems_2_filt):
+            if (x[2] not in problems_1_filt) and (x[2] not in problems_2_filt) and not self.is_an_author(x[0], [handle1, handle2]):
                 fset.append(x)
 
         print(len(fset))
@@ -662,7 +679,7 @@ class DbConn:
                     VALUES
                     (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()) - data[4], data[7], result, data[8]))
+        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()), data[7], result, int(time.time())-data[4]))
         self.conn.commit()
         curr.close()
 
@@ -744,9 +761,9 @@ class DbConn:
         query = """
                     INSERT INTO finished
                     VALUES
-                    (%s, %s, %s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()) - data[4], data[7], result))
+        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()), data[7], result, int(time.time())-data[4]))
         self.conn.commit()
         curr.close()
 
@@ -787,10 +804,12 @@ class DbConn:
                     SELECT * FROM finished
                     WHERE
                     guild = %s
+                    ORDER BY time ASC
                 """
         curr = self.conn.cursor()
         curr.execute(query, (guild,))
         data = curr.fetchall()
+        curr.close()
         resp = []
         c = 1
         for x in data:
@@ -800,7 +819,55 @@ class DbConn:
             except Exception as e:
                 print(e)
                 continue
-            tme = x[4]
+            tme = x[7]
+            m = int(tme / 60)
+            s = tme % 60
+            a = 0
+            b = 0
+            for i in range(0, 5):
+                if x[5][i] == '1':
+                    a += (i + 1) * 100
+                if x[5][i] == '2':
+                    b += (i + 1) * 100
+                if x[5][i] == '3':
+                    a += (i + 1) * 50
+                    b += (i + 1) * 50
+            result = ""
+            if x[6] == 0:
+                result = f"Draw {a}-{b}"
+            if x[6] == 1:
+                result = f"{handle1} won {a}-{b}"
+            if x[6] == 2:
+                result = f"{handle2} won {b}-{a}"
+            if x[6] == 3:
+                result = f"{handle1} (ForceWin)"
+            if x[6] == 4:
+                result = f"{handle2} (ForceWin)"
+            resp.append([str(c), handle1, handle2, str(x[3]), f"{m}m {s}s", result])
+            c += 1
+        return resp
+
+    def get_user_finished(self, guild, user):
+        query = """
+                    SELECT * FROM finished
+                    WHERE
+                    guild = %s AND (p1_id = %s OR p2_id = %s)
+                    ORDER BY time ASC
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, user, user))
+        data = curr.fetchall()
+        curr.close()
+        resp = []
+        c = 1
+        for x in data:
+            try:
+                handle1 = self.get_handle(guild, x[1])
+                handle2 = self.get_handle(guild, x[2])
+            except Exception as e:
+                print(e)
+                continue
+            tme = x[7]
             m = int(tme / 60)
             s = tme % 60
             a = 0
@@ -947,8 +1014,11 @@ def get_solve_time(problem, sub):
     sub.reverse()
     ans = 10000000000
     for x in sub:
-        if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "OK":
-            ans = min(ans, x['creationTimeSeconds'])
+        try:
+            if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "OK":
+                ans = min(ans, x['creationTimeSeconds'])
+        except Exception:
+            pass
     return ans
 
 def is_pending(problem, sub):
@@ -956,8 +1026,11 @@ def is_pending(problem, sub):
     idx = problem.split('/')[1]
     sub.reverse()
     for x in sub:
-        if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "TESTING":
-            return True
+        try:
+            if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "TESTING":
+                return True
+        except Exception:
+            pass
     return False
 
 

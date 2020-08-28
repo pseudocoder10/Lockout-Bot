@@ -8,6 +8,7 @@ import time, asyncio
 from datetime import datetime
 
 from humanfriendly import format_timespan as timeez
+from utils import scraper
 from discord.ext.commands import CommandNotFound, CommandOnCooldown, MissingPermissions, MissingRequiredArgument, \
     BadArgument, MissingAnyRole
 
@@ -48,9 +49,21 @@ async def updateratings(ctx):
         if i%4 == 0:
             await asyncio.sleep(1)
         i += 1
-        rating = await api.get_rating(x[0])
-        db.update_rating(x[0], rating)
+        try:
+            rating = await api.get_rating(x[0])
+            db.update_rating(x[0], rating)
+        except Exception as e:
+            print(f"update error {e}")
     await ctx.send("Ratings updated")
+
+
+@client.command(hidden=True)
+async def scrape_(ctx):
+    if ctx.author.id != 515920333623263252:
+        return
+    await ctx.send("Scraping data")
+    scraper.run()
+    await ctx.send("Data scraped")
 
 
 @client.event
@@ -101,7 +114,6 @@ async def botinfo(ctx):
                     inline=True)
 
     await ctx.send(embed=embed)
-
 
 
 @tasks.loop(seconds=60)
