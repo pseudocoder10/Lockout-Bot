@@ -498,7 +498,7 @@ class DbConn:
                     VALUES
                     (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()), data[5], probs, "00000", data[6]))
+        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time())+5, data[5], probs, "00000", data[6]))
         self.conn.commit()
         curr.close()
 
@@ -561,7 +561,11 @@ class DbConn:
                         continue
                     time1 = get_solve_time(problems[i], sub1)
                     time2 = get_solve_time(problems[i], sub2)
-                    judging = judging | is_pending(problems[i], sub1) | is_pending(problems[i], sub2)
+                    judging1 = False
+                    judging1 = judging1 | is_pending(problems[i], sub1) | is_pending(problems[i], sub2)
+                    if judging1:
+                        judging = True
+                        continue
                     if time1 > x[4] + x[8]*60 and time2 > x[4] + x[8]*60:
                         status = status + '0'
                         continue
