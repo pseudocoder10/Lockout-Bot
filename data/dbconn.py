@@ -564,6 +564,7 @@ class DbConn:
                     judging1 = False
                     judging1 = judging1 | is_pending(problems[i], sub1) | is_pending(problems[i], sub2)
                     if judging1:
+                        status = status + '0'
                         judging = True
                         continue
                     if time1 > x[4] + x[8]*60 and time2 > x[4] + x[8]*60:
