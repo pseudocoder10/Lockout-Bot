@@ -17,12 +17,16 @@ class Help(commands.Cog):
         desc = "Information about commands are given below!\nFor general information about the bot,  type `.botinfo`\nThe bot is public so you can invite it to your own server by clicking [here](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot) \n\n"
         handle = self.client.get_command('handle')
         match = self.client.get_command('match')
+        round = self.client.get_command('round')
 
         desc += "Handle related commands **[use .handle <command>]**\n\n"
         for cmd in handle.commands:
             desc += f"`{cmd.name}`: **{cmd.brief}**\n"
         desc += "\n\nMatch related commands **[use .match <command>]**\n\n"
         for cmd in match.commands:
+            desc += f"`{cmd.name}`: **{cmd.brief}**\n"
+        desc += "\n\nRound related commands **[use .round <command>]**\n\n"
+        for cmd in round.commands:
             desc += f"`{cmd.name}`: **{cmd.brief}**\n"
         embed = discord.Embed(description=desc, color=discord.Color.dark_magenta())
         embed.set_author(name="Lockout commands help", icon_url=ctx.me.avatar_url)

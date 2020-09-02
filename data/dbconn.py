@@ -5,8 +5,11 @@ import psycopg2
 from utils import cf_api
 import time
 from datetime import datetime
+from humanfriendly import format_timespan as timeez
+from utils import elo
 import asyncio
 import json
+from functools import cmp_to_key
 
 
 async def send_message(ctx, message, color):
@@ -108,6 +111,37 @@ class DbConn:
                         guild BIGINT,
                         id BIGINT,
                         rating BIGINT
+                    )
+                    """)
+        cmds.append("""
+                        CREATE TABLE IF NOT EXISTS ongoing_rounds(
+                            guild BIGINT,
+                            users TEXT,
+                            rating TEXT,
+                            points TEXT,
+                            time INT,
+                            channel BIGINT,
+                            problems TEXT,
+                            status TEXT,
+                            duration BIGINT,
+                            repeat BIGINT,
+                            times TEXT
+                    )
+                    """)
+        cmds.append("""
+                        CREATE TABLE IF NOT EXISTS finished_rounds(
+                            guild BIGINT,
+                            users TEXT,
+                            rating TEXT,
+                            points TEXT,
+                            time INT,
+                            channel BIGINT,
+                            problems TEXT,
+                            status TEXT,
+                            duration BIGINT,
+                            repeat BIGINT,
+                            times TEXT,
+                            end_time INT
                     )
                     """)
         try:
@@ -564,8 +598,8 @@ class DbConn:
                     judging1 = False
                     judging1 = judging1 | is_pending(problems[i], sub1) | is_pending(problems[i], sub2)
                     if judging1:
-                        status = status + '0'
                         judging = True
+                        status = status + '0'
                         continue
                     if time1 > x[4] + x[8]*60 and time2 > x[4] + x[8]*60:
                         status = status + '0'
@@ -996,6 +1030,321 @@ class DbConn:
         curr.close()
         return data[0]
 
+    def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat):
+        query = f"""
+                    INSERT INTO ongoing_rounds
+                    VALUES
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        times = ' '.join(['0']*len(users))
+        curr.execute(query, (ctx.guild.id, ' '.join([f"{x.id}" for x in users]), ' '.join([f"{x}" for x in rating]),
+                             ' '.join([f"{x}" for x in points]), int(time.time()), ctx.channel.id,
+                             ' '.join([f"{x[0]}/{x[1]}" for x in problems]), ' '.join('0' for i in range(len(users))),
+                             duration, repeat, times))
+        self.conn.commit()
+        curr.close()
+
+    async def get_subs(self, handles):
+        data = []
+        try:
+            for i in range(len(handles)):
+                subs = await self.cf.get_submissions(handles[i])
+                if not subs:
+                    return [False]
+                data.append(subs)
+        except Exception:
+            return [False]
+        return [True, data]
+
+    def in_a_round(self, guild, user):
+        query = f"""
+                    SELECT * FROM ongoing_rounds
+                    WHERE
+                    users LIKE %s AND guild = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (f"%{user}%", guild))
+        data = curr.fetchall()
+        curr.close()
+        if len(data) > 0:
+            return True
+        return False
+
+    def get_ongoing_rounds(self, guild):
+        query = f"""
+                    SELECT * FROM ongoing_rounds
+                    WHERE
+                    guild = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, ))
+        data = curr.fetchall()
+        curr.close()
+        return data
+
+    def update_round_status(self, guild, users, status, problems, timestamp):
+        query = f"""
+                    UPDATE ongoing_rounds 
+                    SET
+                    status = %s, 
+                    problems = %s,
+                    times = %s
+                    WHERE
+                    guild = %s AND users = %s 
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (' '.join([str(x) for x in status]), ' '.join(problems), ' '.join([str(x) for x in timestamp]),
+                             guild.id, ' '.join([str(x.id) for x in users])))
+        self.conn.commit()
+        curr.close()
+
+    async def get_user_problems(self, handles):
+        data = []
+        try:
+            for i in range(len(handles)):
+                subs = await self.cf.get_user_problems(handles[i])
+                if not subs[0]:
+                    return [False]
+                data.extend(subs[1])
+                if i % 2 == 0 and i > 0:
+                    await asyncio.sleep(1)
+        except Exception:
+            return [False]
+        return [True, data]
+
+    def get_unsolved_problem(self, solved, total, handles, rating):
+        fset = []
+        for x in total:
+            if x[2] not in [name[2] for name in solved] and not self.is_an_author(x[0], handles) and x[4] == rating:
+                fset.append(x)
+        return random.choice(fset) if len(fset) > 0 else None
+
+    async def update_rounds(self, client, guild=None):
+        if not guild:
+            query = """SELECT * FROM ongoing_rounds"""
+        else:
+            query = f"""
+                        SELECT * FROM ongoing_rounds
+                        WHERE
+                        guild = {guild}
+                    """
+        curr = self.conn.cursor()
+        curr.execute(query)
+        data = curr.fetchall()
+        for x in data:
+            try:
+                guild = client.get_guild(x[0])
+                users = [guild.get_member(int(x1)) for x1 in x[1].split()]
+                handles = [self.get_handle(guild.id, user.id) for user in users]
+                rating = [int(x1) for x1 in x[2].split()]
+                points = [int(x1) for x1 in x[3].split()]
+                channel = guild.get_channel(x[5])
+                problems = x[6].split()
+                status = [int(x1) for x1 in x[7].split()]
+                duration = x[8]
+                start = x[4]
+                repeat = x[9]
+                timestamp = [int(x1) for x1 in x[10].split()]
+
+                judging = False
+
+                subs = await self.get_subs(handles)
+                if not subs[0]:
+                    break
+                subs = subs[1]
+                result = []
+
+                # judging .............................
+
+                for i in range(0, len(problems)):
+                    if problems[i] == '0':
+                        result.append([])
+                        continue
+
+                    times = []
+                    judging1 = False
+                    for sub in subs:
+                        times.append(get_solve_time(problems[i], sub))
+                        judging1 = judging1 | is_pending(problems[i], sub)
+                    if judging1:
+                        judging = True
+                        result.append([])
+                        continue
+                    if min(times) > start + duration*60:
+                        result.append([])
+                        continue
+
+                    result.append([ii for ii in range(len(users)) if times[ii] == min(times)])
+                    for j in range(len(users)):
+                        if times[j] == min(times):
+                            timestamp[j] = max(timestamp[j], min(times))
+
+                # checking if solved ...................
+
+                done = False
+                for i in range(len(problems)):
+                    if len(result[i]) == 0:
+                        continue
+                    done = True
+                    problems[i] = '0'
+                    for j in range(len(result[i])):
+                        status[result[i][j]] += points[i]
+                    await channel.send(embed=discord.Embed(description=f"{' '.join([f'{users[j].mention}' for j in result[i]])} has solved the problem worth {points[i]} points (problem number {i+1})",
+                                                           color=discord.Color.blue()))
+
+                # adding new problem ............................
+
+                if done and repeat > 0:
+                    all_subs = await self.get_user_problems(handles)
+                    if not all_subs[0]:
+                        continue
+                    all_subs = all_subs[1]
+                    for prob in problems:
+                        if prob != '0':
+                            all_subs.append([prob.split('/')[0], prob.split('/')[1], self.get_problem_name(prob.split('/')[0], prob.split('/')[1])])
+                    all_prob = self.get_problems()
+                    for i in range(len(problems)):
+                        if problems[i] == '0':
+                            newProb = self.get_unsolved_problem(all_subs, all_prob, handles, rating[i])
+                            if not newProb:
+                                problems[i] = '0'
+                            else:
+                                problems[i] = f"{newProb[0]}/{newProb[1]}"
+
+                self.update_round_status(guild, users, status, problems, timestamp)
+                x = list(x)
+                x[6] = ' '.join([str(pp) for pp in problems])
+                x[7] = ' '.join([str(pp) for pp in status])
+                x = tuple(x)
+
+                # printing ................................
+
+                if (int(time.time()) >= start + duration*60 or (repeat == 0 and self.no_change_possible(status[:], points, problems))) and not judging:
+                    await channel.send(f"{' '.join([f'{user.mention}'for user in users])} match over, here are the final standings:")
+                    await channel.send(embed=self.print_round_score(users, status, timestamp, guild.id, 1))
+                    self.finish_round(x)
+                    self.delete_round(guild.id, users[0].id)
+                elif done:
+                    await channel.send(f"{' '.join([f'{user.mention}' for user in users])} there is an update in standings")
+
+                    pname = []
+                    for prob in problems:
+                        if prob == '0':
+                            pname.append('No unsolved problems of this rating left' if repeat == 1 else "This problem has been solved")
+                        else:
+                            id = prob.split('/')[0]
+                            idx = prob.split('/')[1]
+                            pname.append(f"[{self.get_problem_name(id, idx)}](https://codeforces.com/problemset/problem/{prob})")
+
+                    embed = discord.Embed(color=discord.Color.magenta())
+                    embed.set_author(name=f"Problems left")
+                    embed.add_field(name="Points", value='\n'.join(x[3].split()), inline=True)
+                    embed.add_field(name="Problem", value='\n'.join(pname), inline=True)
+                    embed.add_field(name="Rating", value='\n'.join(x[2].split()), inline=True)
+                    embed.set_footer(text=f"Time left: {timeez(start+60*duration-int(time.time()))}")
+                    await channel.send(embed=embed)
+                    await channel.send(embed=self.print_round_score(users, status, timestamp, guild.id, 0))
+                await asyncio.sleep(1)
+            except Exception as e:
+                print(f"Failed update of rounds {e}")
+            await asyncio.sleep(1)
+        curr.close()
+
+    def finish_round(self, data):
+        query = f"""
+                    INSERT INTO finished_rounds
+                    VALUES
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9],
+                             data[10], int(time.time())))
+        self.conn.commit()
+        curr.close()
+
+    def delete_round(self, guild, user):
+        query = f"""
+                    DELETE FROM ongoing_rounds
+                    WHERE
+                    guild = %s AND USERS LIKE %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, f"%{user}%"))
+        self.conn.commit()
+        curr.close()
+
+    def get_recent_rounds(self, guild, user=""):
+        query = f"""
+                    SELECT * FROM finished_rounds
+                    WHERE guild = %s AND users LIKE %s
+                    ORDER BY end_time DESC
+                    LIMIT 10
+                """
+        curr =self.conn.cursor()
+        curr.execute(query, (guild, f"%{user}%"))
+        data = curr.fetchall()
+        curr.close()
+        return data
+
+    def get_round_info(self, guild, user):
+        query = f"""
+                            SELECT * FROM ongoing_rounds
+                            WHERE 
+                            guild = %s AND users LIKE %s
+                        """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, f"%{user}%"))
+        data = curr.fetchone()
+        curr.close()
+        return data
+
+    def print_round_score(self, users, status, timestamp, guild, over):
+        def comp(a, b):
+            if a[0] > b[0]:
+                return -1
+            if a[0] < b[0]:
+                return 1
+            if a[1] == b[1]:
+                return 0
+            return -1 if a[1] < b[1] else 1
+
+        ranks = [[status[i], timestamp[i], users[i]] for i in range(len(status))]
+        ELO = elo.ELOMatch()
+        ranks.sort(key=cmp_to_key(comp))
+        for i in range(len(users)):
+            ELO.addPlayer(users[i].id, [[x[0], x[1]] for x in ranks].index([status[i], timestamp[i]])+1, self.get_match_rating(guild, users[i].id)[-1])
+        ELO.calculateELOs()
+
+        embed = discord.Embed(color=discord.Color.dark_blue())
+        embed.set_author(name="Standings")
+        for x in ranks:
+            pos = [[i[0], i[1]] for i in ranks].index([x[0], x[1]]) + 1
+            user = x[2]
+            desc = f"{user.mention}\n"
+            desc += f"**Points: {x[0]}**\n"
+            desc += f"**{'Predicted rating changes' if over == 0 else 'Rating changes'}: "
+            new_ = ELO.getELO(x[2].id)
+            old_ = new_ - ELO.getELOChange(x[2].id)
+            if over == 1:
+                self.add_rating_update(guild, x[2].id, new_)
+            desc += f"{old_} --> {new_} ({'+' if new_>=old_ else ''}{new_-old_})**\n\n"
+            embed.add_field(name=f"Rank {pos}", value=desc, inline=False)
+
+        return embed
+
+
+    def no_change_possible(self, status, points, problems):
+        status.sort()
+        sum = 0
+        for i in range(len(points)):
+            if problems[i] != '0':
+                sum = sum + points[i]
+        for i in range(len(status)-1):
+            if status[i] + sum >= status[i+1]:
+                return False
+        return True
+
 def match_over(status):
     a = 0
     b = 0
@@ -1026,14 +1375,16 @@ def get_solve_time(problem, sub):
             pass
     return ans
 
+
 def is_pending(problem, sub):
     c_id = int(problem.split('/')[0])
     idx = problem.split('/')[1]
     sub.reverse()
     for x in sub:
         try:
-            if x['problem']['contestId'] == c_id and x['problem']['index'] == idx and x['verdict'] == "TESTING":
-                return True
+            if x['problem']['contestId'] == c_id and x['problem']['index'] == idx:
+                if 'verdict' not in x or x['verdict'] == "TESTING":
+                    return True
         except Exception:
             pass
     return False
