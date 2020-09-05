@@ -137,11 +137,13 @@ class Round(commands.Cog):
         if len(users) == 0:
             await ctx.send(f"The correct usage is `.round challenge @user1 @user2...`")
             return
-        if ctx.author not in users:
-            users.append(ctx.author)
-        if [ctx.author] == users:
+        
+        if ctx.author in users:
             await ctx.send(f"You cannot compete against yourself!")
             return
+        
+        users.append(ctx.author)
+        users = list(set(users))
 
         if len(users) > 5:
             await ctx.send(f"{ctx.author.mention} you can't compete with more than 4 users at a time")
