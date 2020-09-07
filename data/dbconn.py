@@ -1280,7 +1280,6 @@ class DbConn:
                     SELECT * FROM finished_rounds
                     WHERE guild = %s AND users LIKE %s
                     ORDER BY end_time DESC
-                    LIMIT 10
                 """
         curr =self.conn.cursor()
         curr.execute(query, (guild, f"%{user}%"))

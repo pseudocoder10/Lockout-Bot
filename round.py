@@ -2,8 +2,8 @@ import discord
 import random
 import asyncio
 import time
+import math
 
-from discord.ext import commands
 from functools import cmp_to_key
 from humanfriendly import format_timespan as timeez
 
@@ -80,7 +80,7 @@ class Round(commands.Cog):
                 fset.append(x)
         return random.choice(fset) if len(fset) > 0 else None
 
-    def make_result_embed(self, users, points, times):
+    def make_result_embed(self, users, points, times, rating, problem_points, duration):
         def comp(a, b):
             if a[0] > b[0]:
                 return -1
@@ -97,16 +97,12 @@ class Round(commands.Cog):
         standings.sort(key=cmp_to_key(comp))
         standings1.sort(key=cmp_to_key(comp))
 
-        embed = discord.Embed(color=discord.Color.blurple())
-        text = [""]*3
-        for i in range(len(users)):
-            text[0] += f"{standings1.index([standings[i][0], standings[i][1]])+1}\n"
-            text[1] += f"{standings[i][2].mention}\n"
-            text[2] += f"{standings[i][0]}\n"
-        embed.add_field(name="Rank", value=text[0], inline=True)
-        embed.add_field(name="User", value=text[1], inline=True)
-        embed.add_field(name="Points", value=text[2], inline=True)
-        return embed
+        msg = ' vs '.join([f"{standings[i][2].mention} `Rank {standings1.index([standings[i][0], standings[i][1]])+1}` `{standings[i][0]} Points`" for i in range(len(users))])
+        msg += f"\n**Problem ratings:** {rating}"
+        msg += f"\n**Score distribution** {problem_points}"
+        msg += f"\n**Duration:** {timeez(duration)}\n\n"
+        return msg
+
 
     def make_round_embed(self, ctx):
         desc = "Information about Matches related commands! **[use .round <command>]**\n\n"
@@ -298,25 +294,32 @@ class Round(commands.Cog):
     @round.command(name="recent", brief="Show recent rounds")
     async def recent(self, ctx, user: discord.Member=None):
         data = self.db.get_recent_rounds(ctx.guild.id, str(user.id) if user else "")
-        embed = []
+        content = []
+        embeds = []
 
         for x in data:
             try:
-                embed.append(self.make_result_embed([ctx.guild.get_member(int(i)) for i in x[1].split()],
-                                       [int(i) for i in x[7].split()], [int(i) for i in x[10].split()]))
+                content.append(self.make_result_embed([ctx.guild.get_member(int(i)) for i in x[1].split()],
+                                                    [int(i) for i in x[7].split()], [int(i) for i in x[10].split()],
+                                                    x[2], x[3], x[11] - x[4]))
             except Exception as e:
                 print(e)
 
-        if len(embed) == 0:
+        if len(content) == 0:
             await ctx.send(f"No recent rounds")
             return
 
-        for i in range(len(embed)):
-            embed[i].set_footer(text=f"Page {i+1} of {len(embed)}")
-
         currPage = 0
-        totPage = len(embed)
-        message = await ctx.send(embed=embed[currPage])
+        perPage = 5
+        totPage = math.ceil(len(content) / perPage)
+
+        for i in range(totPage):
+            embed = discord.Embed(description='\n'.join(content[i*perPage:min((i+1)*perPage, len(content))]), color=discord.Color.purple())
+            embed.set_author(name="Recent Rounds")
+            embed.set_footer(text=f"Page {i+1} of {totPage}")
+            embeds.append(embed)
+
+        message = await ctx.send(embed=embeds[currPage])
 
         await message.add_reaction("\U000025c0")
         await message.add_reaction("\U000025b6")
@@ -334,10 +337,10 @@ class Round(commands.Cog):
                     pass
                 if reaction.emoji == "\U000025c0":
                     currPage = (currPage - 1 + totPage) % totPage
-                    await message.edit(embed=embed[currPage])
+                    await message.edit(embed=embeds[currPage])
                 else:
                     currPage = (currPage + 1 + totPage) % totPage
-                    await message.edit(embed=embed[currPage])
+                    await message.edit(embed=embeds[currPage])
             except asyncio.TimeoutError:
                 break
 
