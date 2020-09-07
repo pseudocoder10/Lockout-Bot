@@ -148,7 +148,9 @@ class Matches(commands.Cog):
         if not self.db.is_challenged(ctx.guild.id, ctx.author.id):
             await send_message(ctx, "Noone is challenging you")
             return
-        await ctx.send(embed=Embed(description=f"Preparing to start the match...", color=Color.green()))
+        embed=Embed(description=f"Preparing to start the match...", color=Color.green())
+        embed.set_footer(text=f"You can now compete against multiple opponents at a time.\nType .round challenge for more info")
+        await ctx.send(embed=embed)
         resp = await self.db.add_to_ongoing(ctx, ctx.guild.id, ctx.author.id)
         if not resp[0]:
             await send_message(ctx, resp[1])

@@ -1223,7 +1223,8 @@ class DbConn:
                 if (int(time.time()) >= start + duration*60 or (repeat == 0 and self.no_change_possible(status[:], points, problems))) and not judging:
                     await channel.send(f"{' '.join([f'{user.mention}'for user in users])} match over, here are the final standings:")
                     await channel.send(embed=self.print_round_score(users, status, timestamp, guild.id, 1))
-                    self.finish_round(x)
+                    if len(users) > 1:
+                        self.finish_round(x)
                     self.delete_round(guild.id, users[0].id)
                 elif done:
                     await channel.send(f"{' '.join([f'{user.mention}' for user in users])} there is an update in standings")
@@ -1343,6 +1344,8 @@ class DbConn:
         for i in range(len(status)-1):
             if status[i] + sum >= status[i+1]:
                 return False
+        if len(status) == 1 and sum > 0:
+            return False
         return True
 
 def match_over(status):

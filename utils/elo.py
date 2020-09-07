@@ -41,7 +41,7 @@ class ELOMatch:
 
     def calculateELOs(self):
         n = len(self.players)
-        K = 80 / (n - 1)
+        K = 80 / max(1, (n - 1))
 
         for i in range(n):
             curPlace = self.players[i].place

@@ -133,16 +133,12 @@ class Round(commands.Cog):
 
     @round.command(name="challenge", aliases=['begin'], brief="Challenge someone to a round")
     async def challenge(self, ctx, *users: discord.Member):
-        users = list(users)
+        users = list(set(users))
         if len(users) == 0:
             await ctx.send(f"The correct usage is `.round challenge @user1 @user2...`")
             return
         if ctx.author not in users:
             users.append(ctx.author)
-        if [ctx.author] == users:
-            await ctx.send(f"You cannot compete against yourself!")
-            return
-
         if len(users) > 5:
             await ctx.send(f"{ctx.author.mention} you can't compete with more than 4 users at a time")
             return
@@ -154,7 +150,7 @@ class Round(commands.Cog):
                 await ctx.send(f"{i.name} is already in a round!")
                 return
 
-        embed = discord.Embed(description=f"{' '.join(x.mention for x in users)} react on the message with ✅ within 30 seconds to join the round",
+        embed = discord.Embed(description=f"{' '.join(x.mention for x in users)} react on the message with ✅ within 30 seconds to join the round. {'Since you are the only participant, this will be a practice round and there will be no rating changes' if len(users) == 1 else ''}",
             color=discord.Color.purple())
         message = await ctx.send(embed=embed)
         await message.add_reaction("✅")
@@ -175,31 +171,31 @@ class Round(commands.Cog):
 
         problem_cnt = await get_time_response(self.client, ctx, f"{ctx.author.mention} enter the number of problems between [1, 6]", 30, ctx.author, [1, 6])
         if not problem_cnt[0]:
-            await ctx.send(f"{ctx.author.mention} you took to long to decide")
+            await ctx.send(f"{ctx.author.mention} you took too long to decide")
             return
         problem_cnt = problem_cnt[1]
 
         time = await get_time_response(self.client, ctx, f"{ctx.author.mention} enter the duration of match in minutes between [5, 180]", 30, ctx.author, [5, 180])
         if not time[0]:
-            await ctx.send(f"{ctx.author.mention} you took to long to decide")
+            await ctx.send(f"{ctx.author.mention} you took too long to decide")
             return
         time = time[1]
 
         rating = await get_seq_response(self.client, ctx, f"{ctx.author.mention} enter {problem_cnt} space seperated integers denoting the ratings of problems (between 700 and 4000)", 60, problem_cnt, ctx.author, [700, 4000])
         if not rating[0]:
-            await ctx.send(f"{ctx.author.mention} you took to long to decide")
+            await ctx.send(f"{ctx.author.mention} you took too long to decide")
             return
         rating = rating[1]
 
-        points = await get_seq_response(self.client, ctx, f"{ctx.author.mention} enter {problem_cnt} space seperated integer denoting the points of problems (between 100 and 2000)", 60, problem_cnt, ctx.author, [10, 2000])
+        points = await get_seq_response(self.client, ctx, f"{ctx.author.mention} enter {problem_cnt} space seperated integer denoting the points of problems (between 100 and 10,000)", 60, problem_cnt, ctx.author, [100, 10000])
         if not points[0]:
-            await ctx.send(f"{ctx.author.mention} you took to long to decide")
+            await ctx.send(f"{ctx.author.mention} you took too long to decide")
             return
         points = points[1]
 
         repeat = await get_time_response(self.client, ctx, f"{ctx.author.mention} do you want a new problem to appear when someone solves a problem (type 1 for yes and 0 for no)", 30, ctx.author, [0, 1])
         if not repeat[0]:
-            await ctx.send(f"{ctx.author.mention} you took to long to decide")
+            await ctx.send(f"{ctx.author.mention} you took too long to decide")
             return
         repeat = repeat[1]
 
