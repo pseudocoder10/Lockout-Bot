@@ -96,6 +96,7 @@ async def on_command_error(ctx: commands.Context, error: Exception):
 async def botinfo(ctx):
     handles = db.get_count('handles')
     matches = db.get_count('finished') 
+    rounds = db.get_count('finished_rounds')
     guilds = len(client.guilds)
     uptime_ = int(time.time()) - uptime
 
@@ -105,8 +106,10 @@ async def botinfo(ctx):
 
     embed.add_field(name="Handles Set", value=f"**{handles}**", inline=True)
     embed.add_field(name="Matches played", value=f"**{matches}**", inline=True)
+    embed.add_field(name="Rounds played", value=f"**{rounds}**", inline=True)
     embed.add_field(name="Servers", value=f"**{guilds}**", inline=True)
-    embed.add_field(name="Uptime", value=f"**{timeez(uptime_)}**", inline=False)
+    embed.add_field(name="Uptime", value=f"**{timeez(uptime_)}**", inline=True)
+    embed.add_field(name="\u200b", value=f"\u200b", inline=True)
     embed.add_field(name="GitHub repository", value=f"[GitHub](https://github.com/pseudocoder10/Lockout-Bot)", inline=True)
     embed.add_field(name="Bot Invite link", value=f"[Invite](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot)",
                     inline=True)
@@ -124,11 +127,17 @@ async def update_matches():
     except Exception as e:
         print(f"Failed to auto update matches {str(e)}")
 
+    try:
+        await db.update_rounds(client)
+    except Exception as e:
+        print(f"Failed to auto update rounds {e}")
+
 
 if __name__ == "__main__":
     client.load_extension("handles")
     client.load_extension("matches")
     client.load_extension("help")
+    client.load_extension("round")
 
 token = environ.get('BOT_TOKEN')
 if not token:

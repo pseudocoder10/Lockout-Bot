@@ -1050,7 +1050,7 @@ class DbConn:
         try:
             for i in range(len(handles)):
                 subs = await self.cf.get_submissions(handles[i])
-                if not subs:
+                if subs == False:
                     return [False]
                 data.append(subs)
         except Exception:
@@ -1129,6 +1129,7 @@ class DbConn:
                         WHERE
                         guild = {guild}
                     """
+        print(f"round updating {guild}")
         curr = self.conn.cursor()
         curr.execute(query)
         data = curr.fetchall()
@@ -1146,12 +1147,14 @@ class DbConn:
                 start = x[4]
                 repeat = x[9]
                 timestamp = [int(x1) for x1 in x[10].split()]
+                enter_time = int(time.time())
 
                 judging = False
 
                 subs = await self.get_subs(handles)
-                if not subs[0]:
-                    break
+                if not subs[0]:      
+                
+                    continue
                 subs = subs[1]
                 result = []
 
@@ -1220,7 +1223,7 @@ class DbConn:
 
                 # printing ................................
 
-                if (int(time.time()) >= start + duration*60 or (repeat == 0 and self.no_change_possible(status[:], points, problems))) and not judging:
+                if (enter_time > start + duration*60 or (repeat == 0 and self.no_change_possible(status[:], points, problems))) and not judging:
                     await channel.send(f"{' '.join([f'{user.mention}'for user in users])} match over, here are the final standings:")
                     await channel.send(embed=self.print_round_score(users, status, timestamp, guild.id, 1))
                     if len(users) > 1:
