@@ -73,10 +73,24 @@ class Round(commands.Cog):
             return [False]
         return [True, data]
 
+    async def get_alt_response(self, client, ctx, message, time, author):
+        await ctx.send(message)
+
+        def check(m):
+            if m.author != author:
+                return False
+            return True
+
+        try:
+            msg = await client.wait_for('message', timeout=time, check=check)
+            return [True, [x for x in msg.content.split()]]
+        except asyncio.TimeoutError:
+            return [False]
+
     def get_unsolved_problem(self, solved, total, handles, rating):
         fset = []
         for x in total:
-            if x[2] not in [name[2] for name in solved] and not self.db.is_an_author(x[0], handles) and x[4] == rating:
+            if x[2] not in [name[2] for name in solved] and x[4] == rating:
                 fset.append(x)
         return random.choice(fset) if len(fset) > 0 else None
 
@@ -200,9 +214,30 @@ class Round(commands.Cog):
                 await ctx.send(f"{i.name} is already in a round!")
                 return
 
+        alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users, type Nuune if not applicable Note: len(handles) <= 2*len(users) must be satisfied", 30, ctx.author)
+        if alts[0]:
+            temp = []
+            for alt in alts[1]:
+                if alt == "Nuune":
+                    continue
+                res = await self.api.check_handle(alt)
+                if not res[0]:
+                    await ctx.send(f"{ctx.author.mention} " + alt + " is not valid codeforces handle")
+                    return 
+                temp.append(alt)
+            alts = temp
+        else:
+            alts = []
+
         await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
 
         handles = [self.db.get_handle(ctx.guild.id, user.id) for user in users]
+        handles.extend(alts)
+        handles = list(set(handles))
+
+        if len(handles) > 2*len(users):
+            await ctx.send(f"{ctx.author.mention} len(handles) <= 2*len(users) must be satisfied")
+            return
 
         problems = await self.get_user_problems(handles)
         if not problems[0]:
@@ -230,7 +265,7 @@ class Round(commands.Cog):
         embed.set_footer(text=f"Time left: {time} minutes 0 seconds")
         await ctx.send(embed=embed)
 
-        self.db.add_to_ongoing_round(ctx, users, rating, points, chosen, time, repeat)
+        self.db.add_to_ongoing_round(ctx, users, rating, points, chosen, time, repeat ,handles)
 
     @round.command(name="ongoing", brief="View ongoing rounds")
     async def ongoing(self, ctx):

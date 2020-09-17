@@ -39,7 +39,7 @@ class DbConn:
     def __init__(self):
         self.cf = cf_api.CodeforcesAPI()
         self.authors = author_list()
-        self.conn = psycopg2.connect(database="", user="", password="", host="127.0.0.1", port="5432")
+        self.conn = psycopg2.connect(database="lockout", user="lockout3", password="hellopc12", host="127.0.0.1", port="5432")
         print("Opened database successfully")
         self.make_tables()
 
@@ -126,6 +126,13 @@ class DbConn:
                             duration BIGINT,
                             repeat BIGINT,
                             times TEXT
+                    )
+                    """)
+        cmds.append("""
+                        CREATE TABLE IF NOT EXISTS ongoing_round_alts(
+                            guild BIGINT,
+                            users TEXT,
+                            alys TEXT
                     )
                     """)
         cmds.append("""
@@ -1030,7 +1037,20 @@ class DbConn:
         curr.close()
         return data[0]
 
-    def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat):
+    def add_to_alt_table(self, ctx ,users ,handles):
+        if handles is None:
+            return
+        query = f"""
+                    INSERT INTO ongoing_round_alts
+                    VALUES
+                    (%s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (ctx.guild.id, ' '.join([f"{x.id}" for x in users]), ' '.join([f"{x}" for x in handles])))
+        temp = self.conn.commit()
+        curr.close()        
+
+    def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat, handles=None):
         query = f"""
                     INSERT INTO ongoing_rounds
                     VALUES
@@ -1042,6 +1062,7 @@ class DbConn:
                              ' '.join([f"{x}" for x in points]), int(time.time()), ctx.channel.id,
                              ' '.join([f"{x[0]}/{x[1]}" for x in problems]), ' '.join('0' for i in range(len(users))),
                              duration, repeat, times))
+        self.add_to_alt_table(ctx,users,handles)
         self.conn.commit()
         curr.close()
 
@@ -1116,9 +1137,28 @@ class DbConn:
     def get_unsolved_problem(self, solved, total, handles, rating):
         fset = []
         for x in total:
-            if x[2] not in [name[2] for name in solved] and not self.is_an_author(x[0], handles) and x[4] == rating:
+            if x[2] not in [name[2] for name in solved]  and x[4] == rating:
                 fset.append(x)
         return random.choice(fset) if len(fset) > 0 else None
+
+    def fetch_handles(self,guild,users):
+        try:
+            query = f"""
+                    SELECT * FROM ongoing_round_alts
+                    WHERE
+                    guild = %s AND USERS LIKE %s
+                """
+            curr = self.conn.cursor()
+            curr.execute(query, (guild, ' '.join([f"{x.id}" for x in users])))
+            data = curr.fetchone()
+            data = data[-1]
+            data = [x for x in data.split(' ')]
+            curr.close()
+            return data
+        except Exception as e:
+            print(f"Failed update of rounds {e}")
+            return None
+
 
     async def update_rounds(self, client, guild=None):
         if not guild:
@@ -1138,6 +1178,11 @@ class DbConn:
                 guild = client.get_guild(x[0])
                 users = [guild.get_member(int(x1)) for x1 in x[1].split()]
                 handles = [self.get_handle(guild.id, user.id) for user in users]
+                temp = self.fetch_handles(guild.id,users)
+                if temp is not None:
+                    for x in temp:
+                        if x not in handles:
+                            handles.append(x)
                 rating = [int(x1) for x1 in x[2].split()]
                 points = [int(x1) for x1 in x[3].split()]
                 channel = guild.get_channel(x[5])
@@ -1270,6 +1315,16 @@ class DbConn:
     def delete_round(self, guild, user):
         query = f"""
                     DELETE FROM ongoing_rounds
+                    WHERE
+                    guild = %s AND USERS LIKE %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, f"%{user}%"))
+        self.conn.commit()
+        curr.close()
+
+        query = f"""
+                    DELETE FROM ongoing_round_alts
                     WHERE
                     guild = %s AND USERS LIKE %s
                 """
