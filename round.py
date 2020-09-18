@@ -54,6 +54,8 @@ async def get_seq_response(client, ctx, message, time, length, author, range_):
     except asyncio.TimeoutError:
         return [False]
 
+def get_time():
+    return time.time()
 
 class Round(commands.Cog):
     def __init__(self, client):
@@ -79,6 +81,14 @@ class Round(commands.Cog):
         def check(m):
             if m.author != author:
                 return False
+            elements = m.content.split()
+            if len(elements) < 1:
+                return False
+            if len(elements) == 1:
+                if elements[0] == "None":
+                    return True
+            if elements[0] != "Alts:" :
+                return False 
             return True
 
         try:
@@ -149,7 +159,7 @@ class Round(commands.Cog):
             return
         if ctx.author not in users:
             users.append(ctx.author)
-        if len(users) > 5:
+        if len(users) > 5 and ctx.guild.id != 598608730464190486:
             await ctx.send(f"{ctx.author.mention} you can't compete with more than 4 users at a time")
             return
         for i in users:
@@ -214,20 +224,38 @@ class Round(commands.Cog):
                 await ctx.send(f"{i.name} is already in a round!")
                 return
 
-        alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users, type Nuune if not applicable Note: len(handles) <= 2*len(users) must be satisfied", 30, ctx.author)
-        if alts[0]:
-            temp = []
-            for alt in alts[1]:
-                if alt == "Nuune":
+        check = False 
+        start_time = get_time()
+        First = True
+        while get_time() - start_time < 60:
+            if First:
+                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users\ntype None if not applicable \nFormat \"Alts: handle_1 handle_2 .. \n\"len(handles) <= 2*len(users) must be satisfied", 30, ctx.author)
+                First = False
+            else:
+                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users", 30, ctx.author)
+            if alts[0]:
+                alts = alts[1]
+                if len(alts) < 1:
                     continue
-                res = await self.api.check_handle(alt)
-                if not res[0]:
-                    await ctx.send(f"{ctx.author.mention} " + alt + " is not valid codeforces handle")
-                    return 
-                temp.append(alt)
-            alts = temp
-        else:
-            alts = []
+                if len(alts) == 1:
+                    if alts[0] == "None":
+                        check = True
+                        alts = []
+                        break
+                else:
+                    alts = alts[1:]
+                    check = True
+                    for alt in alts:
+                        res = await self.api.check_handle(alt)
+                        if not res[0]:
+                            await ctx.send(f"{ctx.author.mention} " + alt + " is not valid codeforces handle, try again")
+                            check = False 
+                            break
+                    if check:
+                        break
+        if not check: 
+            await ctx.send(f"{ctx.author.mention} you took too long to decide")
+            return 
 
         await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
 
