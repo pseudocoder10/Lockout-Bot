@@ -39,7 +39,7 @@ class DbConn:
     def __init__(self):
         self.cf = cf_api.CodeforcesAPI()
         self.authors = author_list()
-        self.conn = psycopg2.connect(database="lockout", user="lockout3", password="hellopc12", host="127.0.0.1", port="5432")
+        self.conn = psycopg2.connect(database="", user="", password="", host="127.0.0.1", port="5432")
         print("Opened database successfully")
         self.make_tables()
 
@@ -1150,7 +1150,7 @@ class DbConn:
     def get_unsolved_problem(self, solved, total, handles, rating):
         fset = []
         for x in total:
-            if x[2] not in [name[2] for name in solved]  and x[4] == rating:
+            if x[2] not in [name[2] for name in solved] and not self.is_an_author(x[0], handles) and x[4] == rating:
                 fset.append(x)
         return random.choice(fset) if len(fset) > 0 else None
 

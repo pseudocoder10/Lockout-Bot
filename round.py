@@ -85,9 +85,9 @@ class Round(commands.Cog):
             if len(elements) < 1:
                 return False
             if len(elements) == 1:
-                if elements[0] == "None":
+                if elements[0].lower() == "none":
                     return True
-            if elements[0] != "Alts:" :
+            if elements[0].lower() != "alts:" :
                 return False 
             return True
 
@@ -100,7 +100,7 @@ class Round(commands.Cog):
     def get_unsolved_problem(self, solved, total, handles, rating):
         fset = []
         for x in total:
-            if x[2] not in [name[2] for name in solved] and x[4] == rating:
+            if x[2] not in [name[2] for name in solved] and not self.db.is_an_author(x[0], handles) and x[4] == rating:
                 fset.append(x)
         return random.choice(fset) if len(fset) > 0 else None
 
@@ -159,7 +159,7 @@ class Round(commands.Cog):
             return
         if ctx.author not in users:
             users.append(ctx.author)
-        if len(users) > 5 and ctx.guild.id != 598608730464190486:
+        if len(users) > 5:
             await ctx.send(f"{ctx.author.mention} you can't compete with more than 4 users at a time")
             return
         for i in users:
@@ -227,18 +227,20 @@ class Round(commands.Cog):
         check = False 
         start_time = get_time()
         First = True
+        handles = [self.db.get_handle(ctx.guild.id, user.id) for user in users]
+
         while get_time() - start_time < 60:
             if First:
-                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users\ntype None if not applicable \nFormat \"Alts: handle_1 handle_2 .. \n\"len(handles) <= 2*len(users) must be satisfied", 30, ctx.author)
+                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users\ntype None if not applicable \nFormat \"Alts: handle_1 handle_2 .. \n\"len(handles) <= 2*len(users) must be satisfied", 60, ctx.author)
                 First = False
             else:
-                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users", 30, ctx.author)
+                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users", 60, ctx.author)
             if alts[0]:
                 alts = alts[1]
                 if len(alts) < 1:
                     continue
                 if len(alts) == 1:
-                    if alts[0] == "None":
+                    if alts[0].lower() == "none":
                         check = True
                         alts = []
                         break
@@ -251,21 +253,20 @@ class Round(commands.Cog):
                             await ctx.send(f"{ctx.author.mention} " + alt + " is not valid codeforces handle, try again")
                             check = False 
                             break
+                    alts.extend(handles)
+                    alts = list(set(alts))
+                    if len(alts) > 2*len(users):
+                        await ctx.send(f"{ctx.author.mention} len(handles) <= 2*len(users) must be satisfied")
+                        check = False
                     if check:
+                        handles = alts
                         break
+
         if not check: 
             await ctx.send(f"{ctx.author.mention} you took too long to decide")
             return 
 
         await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
-
-        handles = [self.db.get_handle(ctx.guild.id, user.id) for user in users]
-        handles.extend(alts)
-        handles = list(set(handles))
-
-        if len(handles) > 2*len(users) and ctx.guild.id != 598608730464190486:
-            await ctx.send(f"{ctx.author.mention} len(handles) <= 2*len(users) must be satisfied")
-            return
 
         problems = await self.get_user_problems(handles)
         if not problems[0]:
