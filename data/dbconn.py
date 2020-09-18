@@ -1194,9 +1194,9 @@ class DbConn:
                 handles = [self.get_handle(guild.id, user.id) for user in users]
                 temp = self.fetch_handles(guild.id,users)
                 if temp is not None:
-                    for x in temp:
-                        if x not in handles:
-                            handles.append(x)
+                    for handle in temp:
+                        if handle not in handles:
+                            handles.append(handle)
                 rating = [int(x1) for x1 in x[2].split()]
                 points = [int(x1) for x1 in x[3].split()]
                 channel = guild.get_channel(x[5])
@@ -1207,7 +1207,6 @@ class DbConn:
                 repeat = x[9]
                 timestamp = [int(x1) for x1 in x[10].split()]
                 enter_time = int(time.time())
-
                 judging = False
 
                 subs = await self.get_subs(handles)

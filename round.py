@@ -235,7 +235,7 @@ class Round(commands.Cog):
         handles.extend(alts)
         handles = list(set(handles))
 
-        if len(handles) > 2*len(users):
+        if len(handles) > 2*len(users) and ctx.guild.id != 598608730464190486:
             await ctx.send(f"{ctx.author.mention} len(handles) <= 2*len(users) must be satisfied")
             return
 
