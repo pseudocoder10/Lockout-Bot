@@ -39,7 +39,7 @@ class DbConn:
     def __init__(self):
         self.cf = cf_api.CodeforcesAPI()
         self.authors = author_list()
-        self.conn = psycopg2.connect(database="lockout", user="lockout3", password="hellopc12", host="127.0.0.1", port="5432")
+        self.conn = psycopg2.connect(database="", user="", password="", host="127.0.0.1", port="5432")
         print("Opened database successfully")
         self.make_tables()
 
