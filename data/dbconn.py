@@ -39,7 +39,7 @@ class DbConn:
     def __init__(self):
         self.cf = cf_api.CodeforcesAPI()
         self.authors = author_list()
-        self.conn = psycopg2.connect(database="", user="", password="", host="127.0.0.1", port="5432")
+        self.conn = psycopg2.connect(database="lockout", user="lockout3", password="hellopc12", host="127.0.0.1", port="5432")
         print("Opened database successfully")
         self.make_tables()
 
@@ -272,6 +272,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query)
         temp = curr.fetchall()
+        curr.close()
         print(len(temp))
         if not temp:
             lim = len(data['result'])
@@ -331,9 +332,11 @@ class DbConn:
             curr.execute(query, (x['contestId'], x['index']))
             temp = curr.fetchall()
             if len(temp) != 0:
+                curr.close()
                 continue
 
             if is_nonstandard(self.get_name(x['contestId'])):
+                curr.close()
                 continue
 
             rating = 0
@@ -369,6 +372,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (id,))
         data = curr.fetchone()
+        curr.close()
       #  print(id)
         if len(data) == 0:
             return "69"
@@ -383,6 +387,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (id, index))
         data = curr.fetchone()
+        curr.close()
         return data[2]
 
     def add_to_challenge(self, guild, p1, p2, rating, time, channel, duration):
@@ -492,6 +497,7 @@ class DbConn:
                 """
         curr.execute(query, (guild, id))
         self.conn.commit()
+        curr.close()
 
         problems = self.get_problems()
 
@@ -539,6 +545,7 @@ class DbConn:
                     VALUES
                     (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
+        curr = self.conn.cursor()
         curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time())+5, data[5], probs, "00000", data[6]))
         self.conn.commit()
         curr.close()
@@ -559,6 +566,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (guild, id, id))
         data = curr.fetchone()
+        curr.close()
         if data[0] == id:
             return data[1]
         else:
@@ -581,6 +589,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query)
         data = curr.fetchall()
+        curr.close()
         for x in data:
             
             try:
@@ -634,8 +643,10 @@ class DbConn:
                             WHERE
                             guild = %s and p1_id = %s
                         """
+                curr = self.conn.cursor()
                 curr.execute(query, (status, x[0], x[1]))
                 self.conn.commit()
+                curr.close()
                 if (match_over(status)[0] or time.time() - x[4] > x[8]*60 or all_done(status)) and not judging:
                     await self.print_results(client, x[5], x)
                 else:
@@ -668,7 +679,6 @@ class DbConn:
             except Exception as e:
                 print(f"Failed manual update {str(e)}")
             await asyncio.sleep(1)
-        curr.close()
 
     async def print_results(self, client, channel_id, x):
         channel = client.get_channel(channel_id)
@@ -690,6 +700,7 @@ class DbConn:
                 """
         curr.execute(query, (x[0], x[1]))
         self.conn.commit()
+        curr.close()
 
         x = data
         a = 0
@@ -720,6 +731,7 @@ class DbConn:
             await channel.send(message)
         except Exception:
             pass
+        curr = self.conn.cursor()
         query = """
                     INSERT INTO finished
                     VALUES
@@ -822,6 +834,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (guild,))
         data = curr.fetchall()
+        curr.close()
         resp = []
         c = 0
         for x in data:
@@ -1173,6 +1186,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query)
         data = curr.fetchall()
+        curr.close()
         for x in data:
             try:
                 guild = client.get_guild(x[0])
@@ -1298,7 +1312,6 @@ class DbConn:
             except Exception as e:
                 print(f"Failed update of rounds {e}")
             await asyncio.sleep(1)
-        curr.close()
 
     def finish_round(self, data):
         query = f"""
