@@ -1192,11 +1192,6 @@ class DbConn:
                 guild = client.get_guild(x[0])
                 users = [guild.get_member(int(x1)) for x1 in x[1].split()]
                 handles = [self.get_handle(guild.id, user.id) for user in users]
-                temp = self.fetch_handles(guild.id,users)
-                if temp is not None:
-                    for handle in temp:
-                        if handle not in handles:
-                            handles.append(handle)
                 rating = [int(x1) for x1 in x[2].split()]
                 points = [int(x1) for x1 in x[3].split()]
                 channel = guild.get_channel(x[5])
@@ -1256,6 +1251,12 @@ class DbConn:
 
                 # adding new problem ............................
 
+                temp = self.fetch_handles(guild.id,users)
+                if temp is not None:
+                    for handle in temp:
+                        if handle not in handles:
+                            handles.append(handle)
+                
                 if done and repeat > 0:
                     all_subs = await self.get_user_problems(handles)
                     if not all_subs[0]:
