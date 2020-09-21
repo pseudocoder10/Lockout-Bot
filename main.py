@@ -30,17 +30,18 @@ async def on_ready():
     uptime = int(time.time())
     update_matches.start()
 
+root_users=[519879218402689024,515920333623263252]
 
 @client.command(hidden=True)
 async def update_db(ctx):
-    if ctx.author.id != 515920333623263252:
+    if ctx.author.id not in root_users:
         return
     await db.update_db(ctx)
 
 
 @client.command(hidden=True)
 async def updateratings(ctx):
-    if ctx.author.id != 515920333623263252:
+    if ctx.author.id not in root_users:
         return
     await ctx.send("Updating ratings")
     data = db.get_overall_handles()
@@ -59,7 +60,7 @@ async def updateratings(ctx):
 
 @client.command(hidden=True)
 async def scrape_(ctx):
-    if ctx.author.id != 515920333623263252:
+    if ctx.author.id not in root_users:
         return
     await ctx.send("Scraping data")
     scraper.run()

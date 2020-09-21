@@ -129,6 +129,13 @@ class DbConn:
                     )
                     """)
         cmds.append("""
+                        CREATE TABLE IF NOT EXISTS ongoing_round_alts(
+                            guild BIGINT,
+                            users TEXT,
+                            alys TEXT
+                    )
+                    """)
+        cmds.append("""
                         CREATE TABLE IF NOT EXISTS finished_rounds(
                             guild BIGINT,
                             users TEXT,
@@ -265,6 +272,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query)
         temp = curr.fetchall()
+        curr.close()
         print(len(temp))
         if not temp:
             lim = len(data['result'])
@@ -324,9 +332,11 @@ class DbConn:
             curr.execute(query, (x['contestId'], x['index']))
             temp = curr.fetchall()
             if len(temp) != 0:
+                curr.close()
                 continue
 
             if is_nonstandard(self.get_name(x['contestId'])):
+                curr.close()
                 continue
 
             rating = 0
@@ -362,6 +372,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (id,))
         data = curr.fetchone()
+        curr.close()
       #  print(id)
         if len(data) == 0:
             return "69"
@@ -376,6 +387,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (id, index))
         data = curr.fetchone()
+        curr.close()
         return data[2]
 
     def add_to_challenge(self, guild, p1, p2, rating, time, channel, duration):
@@ -485,6 +497,7 @@ class DbConn:
                 """
         curr.execute(query, (guild, id))
         self.conn.commit()
+        curr.close()
 
         problems = self.get_problems()
 
@@ -532,6 +545,7 @@ class DbConn:
                     VALUES
                     (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
+        curr = self.conn.cursor()
         curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time())+5, data[5], probs, "00000", data[6]))
         self.conn.commit()
         curr.close()
@@ -552,6 +566,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (guild, id, id))
         data = curr.fetchone()
+        curr.close()
         if data[0] == id:
             return data[1]
         else:
@@ -574,6 +589,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query)
         data = curr.fetchall()
+        curr.close()
         for x in data:
             
             try:
@@ -627,8 +643,10 @@ class DbConn:
                             WHERE
                             guild = %s and p1_id = %s
                         """
+                curr = self.conn.cursor()
                 curr.execute(query, (status, x[0], x[1]))
                 self.conn.commit()
+                curr.close()
                 if (match_over(status)[0] or time.time() - x[4] > x[8]*60 or all_done(status)) and not judging:
                     await self.print_results(client, x[5], x)
                 else:
@@ -661,7 +679,6 @@ class DbConn:
             except Exception as e:
                 print(f"Failed manual update {str(e)}")
             await asyncio.sleep(1)
-        curr.close()
 
     async def print_results(self, client, channel_id, x):
         channel = client.get_channel(channel_id)
@@ -683,6 +700,7 @@ class DbConn:
                 """
         curr.execute(query, (x[0], x[1]))
         self.conn.commit()
+        curr.close()
 
         x = data
         a = 0
@@ -713,6 +731,7 @@ class DbConn:
             await channel.send(message)
         except Exception:
             pass
+        curr = self.conn.cursor()
         query = """
                     INSERT INTO finished
                     VALUES
@@ -815,6 +834,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (guild,))
         data = curr.fetchall()
+        curr.close()
         resp = []
         c = 0
         for x in data:
@@ -1030,7 +1050,20 @@ class DbConn:
         curr.close()
         return data[0]
 
-    def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat):
+    def add_to_alt_table(self, ctx ,users ,handles):
+        if handles is None:
+            return
+        query = f"""
+                    INSERT INTO ongoing_round_alts
+                    VALUES
+                    (%s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (ctx.guild.id, ' '.join([f"{x.id}" for x in users]), ' '.join([f"{x}" for x in handles])))
+        temp = self.conn.commit()
+        curr.close()        
+
+    def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat, handles=None):
         query = f"""
                     INSERT INTO ongoing_rounds
                     VALUES
@@ -1042,6 +1075,7 @@ class DbConn:
                              ' '.join([f"{x}" for x in points]), int(time.time()), ctx.channel.id,
                              ' '.join([f"{x[0]}/{x[1]}" for x in problems]), ' '.join('0' for i in range(len(users))),
                              duration, repeat, times))
+        self.add_to_alt_table(ctx,users,handles)
         self.conn.commit()
         curr.close()
 
@@ -1120,6 +1154,25 @@ class DbConn:
                 fset.append(x)
         return random.choice(fset) if len(fset) > 0 else None
 
+    def fetch_handles(self,guild,users):
+        try:
+            query = f"""
+                    SELECT * FROM ongoing_round_alts
+                    WHERE
+                    guild = %s AND USERS LIKE %s
+                """
+            curr = self.conn.cursor()
+            curr.execute(query, (guild, ' '.join([f"{x.id}" for x in users])))
+            data = curr.fetchone()
+            data = data[-1]
+            data = [x for x in data.split(' ')]
+            curr.close()
+            return data
+        except Exception as e:
+            print(f"Failed update of rounds {e}")
+            return None
+
+
     async def update_rounds(self, client, guild=None):
         if not guild:
             query = """SELECT * FROM ongoing_rounds"""
@@ -1133,6 +1186,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query)
         data = curr.fetchall()
+        curr.close()
         for x in data:
             try:
                 guild = client.get_guild(x[0])
@@ -1148,7 +1202,6 @@ class DbConn:
                 repeat = x[9]
                 timestamp = [int(x1) for x1 in x[10].split()]
                 enter_time = int(time.time())
-
                 judging = False
 
                 subs = await self.get_subs(handles)
@@ -1198,6 +1251,12 @@ class DbConn:
 
                 # adding new problem ............................
 
+                temp = self.fetch_handles(guild.id,users)
+                if temp is not None:
+                    for handle in temp:
+                        if handle not in handles:
+                            handles.append(handle)
+                
                 if done and repeat > 0:
                     all_subs = await self.get_user_problems(handles)
                     if not all_subs[0]:
@@ -1253,7 +1312,6 @@ class DbConn:
             except Exception as e:
                 print(f"Failed update of rounds {e}")
             await asyncio.sleep(1)
-        curr.close()
 
     def finish_round(self, data):
         query = f"""
@@ -1270,6 +1328,16 @@ class DbConn:
     def delete_round(self, guild, user):
         query = f"""
                     DELETE FROM ongoing_rounds
+                    WHERE
+                    guild = %s AND USERS LIKE %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, f"%{user}%"))
+        self.conn.commit()
+        curr.close()
+
+        query = f"""
+                    DELETE FROM ongoing_round_alts
                     WHERE
                     guild = %s AND USERS LIKE %s
                 """
