@@ -175,19 +175,28 @@ class Round(commands.Cog):
         message = await ctx.send(embed=embed)
         await message.add_reaction("✅")
 
-        await asyncio.sleep(30)
-        message = await ctx.channel.fetch_message(message.id)
+        # await asyncio.sleep(30)
+        try:
+            query_time = time.time()
+            all_users_reacted = False
+            while (time.time() - query_time < 30):
+                await asyncio.sleep(2)
+                message = await ctx.channel.fetch_message(message.id)
+                reaction = None
+                for x in message.reactions:
+                if x.emoji == "✅":
+                    reaction = x
 
-        reaction = None
-        for x in message.reactions:
-            if x.emoji == "✅":
-                reaction = x
-
-        reacted = await reaction.users().flatten()
-        for i in users:
-            if i not in reacted:
-                await ctx.send(f"Unable to start round, {i.name} did not react in time!")
-                return
+                reacted = await reaction.users().flatten()
+                user_cnt = 0
+                for user in users:
+                    if user in reacted
+                        user_cnt++;
+                if (user_cnt == len(users))
+                    all_users_reacted = True
+        if(all_users_reacted == False)
+            await ctx.send(f"Unable to start round, {i.name} did not react in time!")
+            return
 
         problem_cnt = await get_time_response(self.client, ctx, f"{ctx.author.mention} enter the number of problems between [1, 6]", 30, ctx.author, [1, 6])
         if not problem_cnt[0]:

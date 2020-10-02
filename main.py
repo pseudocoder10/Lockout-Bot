@@ -142,6 +142,6 @@ if __name__ == "__main__":
 
 token = environ.get('BOT_TOKEN')
 if not token:
-    print('Bot token not found!')
+    client.run(NzYxNjE1ODY4NzQ0MzAyNjgy.X3dMDQ.nIFxk-IHTqog8dJwNpUmd1137w4)
 else:
     client.run(token)
