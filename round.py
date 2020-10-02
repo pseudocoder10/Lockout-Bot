@@ -14,7 +14,6 @@ from discord.ext import commands
 from discord.ext.commands import cooldown, BucketType, CommandOnCooldown
 
 
-
 async def get_time_response(client, ctx, message, time, author, range_):
     await ctx.send(message)
 
@@ -54,8 +53,25 @@ async def get_seq_response(client, ctx, message, time, length, author, range_):
     except asyncio.TimeoutError:
         return [False]
 
+
 def get_time():
     return time.time()
+
+
+async def check_if_reacted(ctx,users, message_id):
+    message = await ctx.channel.fetch_message(message_id)
+
+    reaction = None
+    for x in message.reactions:
+        if x.emoji == "✅":
+            reaction = x
+
+    reacted = await reaction.users().flatten()
+    for i in users:
+        if i not in reacted:
+            return [False,i]
+
+    return [True]
 
 class Round(commands.Cog):
     def __init__(self, client):
@@ -87,8 +103,8 @@ class Round(commands.Cog):
             if len(elements) == 1:
                 if elements[0].lower() == "none":
                     return True
-            if elements[0].lower() != "alts:" :
-                return False 
+            if elements[0].lower() != "alts:":
+                return False
             return True
 
         try:
@@ -121,12 +137,12 @@ class Round(commands.Cog):
         standings.sort(key=cmp_to_key(comp))
         standings1.sort(key=cmp_to_key(comp))
 
-        msg = ' vs '.join([f"{standings[i][2].mention} `Rank {standings1.index([standings[i][0], standings[i][1]])+1}` `{standings[i][0]} Points`" for i in range(len(users))])
+        msg = ' vs '.join(
+            [f"{standings[i][2].mention} `Rank {standings1.index([standings[i][0], standings[i][1]])+1}` `{standings[i][0]} Points`" for i in range(len(users))])
         msg += f"\n**Problem ratings:** {rating}"
         msg += f"\n**Score distribution** {problem_points}"
         msg += f"\n**Duration:** {timeez(duration)}\n\n"
         return msg
-
 
     def make_round_embed(self, ctx):
         desc = "Information about Matches related commands! **[use .round <command>]**\n\n"
@@ -134,8 +150,10 @@ class Round(commands.Cog):
 
         for cmd in match.commands:
             desc += f"`{cmd.name}`: **{cmd.brief}**\n"
-        embed = discord.Embed(description=desc, color=discord.Color.dark_magenta())
-        embed.set_author(name="Lockout commands help", icon_url=ctx.me.avatar_url)
+        embed = discord.Embed(
+            description=desc, color=discord.Color.dark_magenta())
+        embed.set_author(name="Lockout commands help",
+                         icon_url=ctx.me.avatar_url)
         embed.set_footer(
             text="Use the prefix . before each command. For detailed usage about a particular command, type .help match <command>")
         embed.add_field(name="GitHub repository", value=f"[GitHub](https://github.com/pseudocoder10/Lockout-Bot)",
@@ -171,23 +189,21 @@ class Round(commands.Cog):
                 return
 
         embed = discord.Embed(description=f"{' '.join(x.mention for x in users)} react on the message with ✅ within 30 seconds to join the round. {'Since you are the only participant, this will be a practice round and there will be no rating changes' if len(users) == 1 else ''}",
-            color=discord.Color.purple())
+                              color=discord.Color.purple())
         message = await ctx.send(embed=embed)
         await message.add_reaction("✅")
 
-        await asyncio.sleep(30)
-        message = await ctx.channel.fetch_message(message.id)
+        start_time = get_time()
+        while get_time() - start_time < 30:
+            res_for_checking = await check_if_reacted(ctx,users, message.id)
+            if res_for_checking[0]:
+                break
+            await asyncio.sleep(2)
 
-        reaction = None
-        for x in message.reactions:
-            if x.emoji == "✅":
-                reaction = x
-
-        reacted = await reaction.users().flatten()
-        for i in users:
-            if i not in reacted:
-                await ctx.send(f"Unable to start round, {i.name} did not react in time!")
-                return
+        res_for_checking = await check_if_reacted(ctx,users, message.id)
+        if not res_for_checking[0]:
+            await ctx.send(f"Unable to start round, {res_for_checking[1].name} did not react in time!")
+            return
 
         problem_cnt = await get_time_response(self.client, ctx, f"{ctx.author.mention} enter the number of problems between [1, 6]", 30, ctx.author, [1, 6])
         if not problem_cnt[0]:
@@ -224,7 +240,7 @@ class Round(commands.Cog):
                 await ctx.send(f"{i.name} is already in a round!")
                 return
 
-        check = False 
+        check = False
         start_time = get_time()
         First = True
         handles = [self.db.get_handle(ctx.guild.id, user.id) for user in users]
@@ -251,7 +267,7 @@ class Round(commands.Cog):
                         res = await self.api.check_handle(alt)
                         if not res[0]:
                             await ctx.send(f"{ctx.author.mention} " + alt + " is not valid codeforces handle, try again")
-                            check = False 
+                            check = False
                             break
                     alts.extend(handles)
                     alts = list(set(alts))
@@ -262,9 +278,9 @@ class Round(commands.Cog):
                         handles = alts
                         break
 
-        if not check: 
+        if not check:
             await ctx.send(f"{ctx.author.mention} you took too long to decide")
-            return 
+            return
 
         await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
 
@@ -280,7 +296,8 @@ class Round(commands.Cog):
         for i in range(len(rating)):
             x = rating[i]
             solved_problems.extend(chosen)
-            problem = self.get_unsolved_problem(solved_problems, tot_problems, handles, x)
+            problem = self.get_unsolved_problem(
+                solved_problems, tot_problems, handles, x)
             if not problem:
                 await ctx.send(f"Not enough problems of rating {x} left")
                 return
@@ -288,13 +305,17 @@ class Round(commands.Cog):
 
         embed = discord.Embed(color=discord.Color.magenta())
         embed.set_author(name="Problems")
-        embed.add_field(name="Points", value='\n'.join(str(pt) for pt in points), inline=True)
-        embed.add_field(name="Problem Name", value='\n'.join([f"[{pr[2]}](https://codeforces.com/problemset/problem/{pr[0]}/{pr[1]})" for pr in chosen]), inline=True)
-        embed.add_field(name="Rating", value='\n'.join([str(rt) for rt in rating]), inline=True)
+        embed.add_field(name="Points", value='\n'.join(str(pt)
+                                                       for pt in points), inline=True)
+        embed.add_field(name="Problem Name", value='\n'.join(
+            [f"[{pr[2]}](https://codeforces.com/problemset/problem/{pr[0]}/{pr[1]})" for pr in chosen]), inline=True)
+        embed.add_field(name="Rating", value='\n'.join(
+            [str(rt) for rt in rating]), inline=True)
         embed.set_footer(text=f"Time left: {time} minutes 0 seconds")
         await ctx.send(embed=embed)
 
-        self.db.add_to_ongoing_round(ctx, users, rating, points, chosen, time, repeat ,handles)
+        self.db.add_to_ongoing_round(
+            ctx, users, rating, points, chosen, time, repeat, handles)
 
     @round.command(name="ongoing", brief="View ongoing rounds")
     async def ongoing(self, ctx):
@@ -306,8 +327,10 @@ class Round(commands.Cog):
                 users = [ctx.guild.get_member(int(x1)) for x1 in x[1].split()]
                 status = [int(x1) for x1 in x[7].split()]
                 timestamp = [int(x1) for x1 in x[10].split()]
-                embed_ = self.db.print_round_score(users, status, timestamp, ctx.guild.id, 0)
-                embed_.add_field(name="Time left", value=timeez(x[4]+60*x[8]-int(time.time())), inline=False)
+                embed_ = self.db.print_round_score(
+                    users, status, timestamp, ctx.guild.id, 0)
+                embed_.add_field(name="Time left", value=timeez(
+                    x[4]+60*x[8]-int(time.time())), inline=False)
                 embed.append(embed_)
             except Exception as e:
                 pass
@@ -356,16 +379,18 @@ class Round(commands.Cog):
         await ctx.send(f"Round deleted")
 
     @round.command(name="recent", brief="Show recent rounds")
-    async def recent(self, ctx, user: discord.Member=None):
-        data = self.db.get_recent_rounds(ctx.guild.id, str(user.id) if user else "")
+    async def recent(self, ctx, user: discord.Member = None):
+        data = self.db.get_recent_rounds(
+            ctx.guild.id, str(user.id) if user else "")
         content = []
         embeds = []
 
         for x in data:
             try:
                 content.append(self.make_result_embed([ctx.guild.get_member(int(i)) for i in x[1].split()],
-                                                    [int(i) for i in x[7].split()], [int(i) for i in x[10].split()],
-                                                    x[2], x[3], x[11] - x[4]))
+                                                      [int(i) for i in x[7].split()], [
+                    int(i) for i in x[10].split()],
+                    x[2], x[3], x[11] - x[4]))
             except Exception as e:
                 print(e)
 
@@ -378,7 +403,8 @@ class Round(commands.Cog):
         totPage = math.ceil(len(content) / perPage)
 
         for i in range(totPage):
-            embed = discord.Embed(description='\n'.join(content[i*perPage:min((i+1)*perPage, len(content))]), color=discord.Color.purple())
+            embed = discord.Embed(description='\n'.join(
+                content[i*perPage:min((i+1)*perPage, len(content))]), color=discord.Color.purple())
             embed.set_author(name="Recent Rounds")
             embed.set_footer(text=f"Page {i+1} of {totPage}")
             embeds.append(embed)
@@ -455,7 +481,7 @@ class Round(commands.Cog):
                 color=discord.Color.red()))
 
     @round.command(name="problems", brief="View problems of a round")
-    async def problems(self, ctx, member: discord.Member=None):
+    async def problems(self, ctx, member: discord.Member = None):
         if not member:
             member = ctx.author
         if not self.db.in_a_round(ctx.guild.id, member.id):
@@ -477,14 +503,18 @@ class Round(commands.Cog):
             else:
                 id = prob.split('/')[0]
                 idx = prob.split('/')[1]
-                pname.append(f"[{self.db.get_problem_name(id, idx)}](https://codeforces.com/problemset/problem/{prob})")
+                pname.append(
+                    f"[{self.db.get_problem_name(id, idx)}](https://codeforces.com/problemset/problem/{prob})")
 
         embed = discord.Embed(color=discord.Color.magenta())
         embed.set_author(name=f"Problems left")
-        embed.add_field(name="Points", value='\n'.join(x[3].split()), inline=True)
+        embed.add_field(name="Points", value='\n'.join(
+            x[3].split()), inline=True)
         embed.add_field(name="Problem", value='\n'.join(pname), inline=True)
-        embed.add_field(name="Rating", value='\n'.join(x[2].split()), inline=True)
-        embed.set_footer(text=f"Time left: {timeez(start + 60 * duration - int(time.time()))}")
+        embed.add_field(name="Rating", value='\n'.join(
+            x[2].split()), inline=True)
+        embed.set_footer(
+            text=f"Time left: {timeez(start + 60 * duration - int(time.time()))}")
         await ctx.send(embed=embed)
 
 
