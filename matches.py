@@ -184,7 +184,7 @@ class Matches(commands.Cog):
         if not self.db.in_a_match(ctx.guild.id, ctx.author.id):
             await send_message(ctx, f"User {ctx.author.mention} is not in a match.")
             return
-        opponent = ctx.guild.get_member(self.db.get_opponent(ctx.guild.id, ctx.author.id))
+        opponent = await ctx.guild.fetch_member(self.db.get_opponent(ctx.guild.id, ctx.author.id))
         await ctx.send(f"{opponent.mention} you opponent {ctx.author.mention} has proposed to forfeit the match, type `yes` within 30 seconds to accept")
 
         try:
@@ -332,7 +332,7 @@ class Matches(commands.Cog):
 
     @match.command(brief="Show match ratings of all the users")
     async def ranklist(self, ctx):
-        data = self.db.get_ranklist(ctx)
+        data = await self.db.get_ranklist(ctx)
         print(data)
         if len(data) == 0:
             await send_message(ctx, "No rated user in the server")

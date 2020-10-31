@@ -18,8 +18,8 @@ async def send_message(ctx, message, color):
 
 def is_nonstandard(name):
     useless = [
-    'wild', 'fools', 'unrated', 'surprise', 'unknown', 'friday', 'q#', 'testing',
-    'marathon', 'kotlin', 'onsite', 'experimental', 'abbyy']
+        'wild', 'fools', 'unrated', 'surprise', 'unknown', 'friday', 'q#', 'testing',
+        'marathon', 'kotlin', 'onsite', 'experimental', 'abbyy']
     for x in useless:
         if x in name.lower():
             return True
@@ -32,7 +32,7 @@ def author_list():
     return data
 
 
-TOTAL_TIME = 45*60 + 120
+TOTAL_TIME = 45 * 60 + 120
 
 
 class DbConn:
@@ -373,7 +373,7 @@ class DbConn:
         curr.execute(query, (id,))
         data = curr.fetchone()
         curr.close()
-      #  print(id)
+        #  print(id)
         if len(data) == 0:
             return "69"
         return data[0]
@@ -521,14 +521,15 @@ class DbConn:
 
         fset = []
         for x in problems:
-            if (x[2] not in problems_1_filt) and (x[2] not in problems_2_filt) and not self.is_an_author(x[0], [handle1, handle2]):
+            if (x[2] not in problems_1_filt) and (x[2] not in problems_2_filt) and not self.is_an_author(x[0], [handle1,
+                                                                                                                handle2]):
                 fset.append(x)
 
         print(len(fset))
 
         final_questions = []
         for i in range(0, 5):
-            rate = data[3]+i*100
+            rate = data[3] + i * 100
             selected = []
             for x in fset:
                 if x[4] == rate:
@@ -537,7 +538,7 @@ class DbConn:
                 return [False, f"No problems with rating {rate} left for the users"]
             final_questions.append(random.choice(selected))
 
-        probs=""
+        probs = ""
         for x in final_questions:
             probs += f"{x[0]}/{x[1]} "
         query = """
@@ -546,7 +547,8 @@ class DbConn:
                     (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
         curr = self.conn.cursor()
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time())+5, data[5], probs, "00000", data[6]))
+        curr.execute(query,
+                     (data[0], data[1], data[2], data[3], int(time.time()) + 5, data[5], probs, "00000", data[6]))
         self.conn.commit()
         curr.close()
 
@@ -579,8 +581,10 @@ class DbConn:
                         SELECT * FROM ongoing
                     """
         else:
-            print(f"Manual update called by {ctx.author.id}|{ctx.author.name} server: {ctx.guild.id}|{ctx.guild.name} time: {datetime.fromtimestamp(int(time.time())).strftime('%A, %B %d, %Y %I:%M:%S')}")
-            await ctx.send(embed=discord.Embed(description=f"Updating matches for this server", color=discord.Color.green()))
+            print(
+                f"Manual update called by {ctx.author.id}|{ctx.author.name} server: {ctx.guild.id}|{ctx.guild.name} time: {datetime.fromtimestamp(int(time.time())).strftime('%A, %B %d, %Y %I:%M:%S')}")
+            await ctx.send(
+                embed=discord.Embed(description=f"Updating matches for this server", color=discord.Color.green()))
             query = f"""
                         SELECT * FROM ongoing
                         WHERE
@@ -591,7 +595,7 @@ class DbConn:
         data = curr.fetchall()
         curr.close()
         for x in data:
-            
+
             try:
                 done = 0
                 judging = False
@@ -599,11 +603,11 @@ class DbConn:
                 handle2 = self.get_handle(x[0], x[2])
                 sub1 = await self.cf.get_submissions(handle1)
                 sub2 = await self.cf.get_submissions(handle2)
-                status=""
+                status = ""
                 guild = client.get_guild(x[0])
                 channel = client.get_channel(x[5])
-                mem1 = guild.get_member(x[1])
-                mem2 = guild.get_member(x[2])
+                mem1 = await guild.fetch_member(x[1])
+                mem2 = await guild.fetch_member(x[2])
                 problems = x[6].split()
                 for i in range(0, 5):
                     if x[7][i] != '0':
@@ -617,20 +621,24 @@ class DbConn:
                         judging = True
                         status = status + '0'
                         continue
-                    if time1 > x[4] + x[8]*60 and time2 > x[4] + x[8]*60:
+                    if time1 > x[4] + x[8] * 60 and time2 > x[4] + x[8] * 60:
                         status = status + '0'
                         continue
-                    if time1 < time2 and time1 <= x[4] + x[8]*60:
+                    if time1 < time2 and time1 <= x[4] + x[8] * 60:
                         done = 1
                         status = status + '1'
-                        await channel.send(embed=discord.Embed(description=f"{mem1.mention} has solved the problem worth {(i+1)*100} points", color=discord.Color.blue()))
+                        await channel.send(embed=discord.Embed(
+                            description=f"{mem1.mention} has solved the problem worth {(i + 1) * 100} points",
+                            color=discord.Color.blue()))
 
-                    elif time1 > time2 and time2 <= x[4] + x[8]*60:
+                    elif time1 > time2 and time2 <= x[4] + x[8] * 60:
                         done = 1
                         status = status + '2'
-                        await channel.send(embed=discord.Embed(description=f"{mem2.mention} has solved the problem worth {(i+1)*100} points", color=discord.Color.blue()))
+                        await channel.send(embed=discord.Embed(
+                            description=f"{mem2.mention} has solved the problem worth {(i + 1) * 100} points",
+                            color=discord.Color.blue()))
 
-                    elif time1 == time2 and time1 <= x[4] + x[8]*60:
+                    elif time1 == time2 and time1 <= x[4] + x[8] * 60:
                         done = 1
                         status = status + '3'
                         await channel.send(embed=discord.Embed(
@@ -647,7 +655,7 @@ class DbConn:
                 curr.execute(query, (status, x[0], x[1]))
                 self.conn.commit()
                 curr.close()
-                if (match_over(status)[0] or time.time() - x[4] > x[8]*60 or all_done(status)) and not judging:
+                if (match_over(status)[0] or time.time() - x[4] > x[8] * 60 or all_done(status)) and not judging:
                     await self.print_results(client, x[5], x)
                 else:
                     if done == 0:
@@ -659,20 +667,20 @@ class DbConn:
                     prating = ""
                     ppts = ""
                     problems = x[6].split()
-                    tme = x[8]*60 - (int(time.time())-x[4])
+                    tme = x[8] * 60 - (int(time.time()) - x[4])
                     for i in range(0, 5):
                         if status[i] != '0':
                             continue
 
-                        ppts += f"{(i+1)*100}\n"
+                        ppts += f"{(i + 1) * 100}\n"
                         pname += f"[{self.get_problem_name(problems[i].split('/')[0], problems[i].split('/')[1])}](https://codeforces.com/problemset/problem/{problems[i]})\n"
-                        prating += f"{(i*100)+x[3]}\n"
+                        prating += f"{(i * 100) + x[3]}\n"
                     embed = discord.Embed(color=discord.Color.green())
                     embed.set_author(name=f"Current standings \n{handle1} ({a} points) vs ({b} points) {handle2}")
                     embed.add_field(name="Points", value=ppts, inline=True)
                     embed.add_field(name="Problem", value=pname, inline=True)
                     embed.add_field(name="Rating", value=prating, inline=True)
-                    embed.set_footer(text=f"Time left: {int(tme/60)} minutes {tme%60} seconds")
+                    embed.set_footer(text=f"Time left: {int(tme / 60)} minutes {tme % 60} seconds")
                     channel = client.get_channel(x[5])
 
                     await channel.send(embed=embed)
@@ -708,24 +716,26 @@ class DbConn:
         result = 0
         for i in range(0, 5):
             if x[7][i] == '1':
-                a += (i+1)*100
+                a += (i + 1) * 100
             if x[7][i] == '2':
-                b += (i+1)*100
+                b += (i + 1) * 100
             if x[7][i] == '3':
-                a += (i+1)*50
-                b += (i+1)*50
+                a += (i + 1) * 50
+                b += (i + 1) * 50
         message = ""
         try:
+            mem1 = await guild.fetch_member(x[1])
+            mem2 = await guild.fetch_member(x[2])
             if a > b:
-                message = f"Match over, {guild.get_member(x[1]).mention} has defeated {guild.get_member(x[2]).mention}\n"
+                message = f"Match over, {mem1.mention} has defeated {mem2.mention}\n"
                 message = message + f"Final score {a} - {b}"
                 result = 1
             elif a < b:
-                message = f"Match over, {guild.get_member(x[2]).mention} has defeated {guild.get_member(x[1]).mention}\n"
+                message = f"Match over, {mem2.mention} has defeated {mem1.mention}\n"
                 message = message + f"Final score {a} - {b}"
                 result = 2
             else:
-                message = f"Match over, its a draw between {guild.get_member(x[1]).mention} and {guild.get_member(x[2]).mention}!\n"
+                message = f"Match over, its a draw between {mem1.mention} and {mem2.mention}!\n"
                 message = message + f"Final score {a} - {b}"
                 result = 0
             await channel.send(message)
@@ -737,23 +747,26 @@ class DbConn:
                     VALUES
                     (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()), data[7], result, int(time.time())-data[4]))
+        curr.execute(query, (
+        data[0], data[1], data[2], data[3], int(time.time()), data[7], result, int(time.time()) - data[4]))
         self.conn.commit()
         curr.close()
 
         pp = result
         if pp == 2:
             pp = 0
-        elif pp== 0:
+        elif pp == 0:
             pp = 0.5
-        elif pp>2:
+        elif pp > 2:
             return
         rating1 = self.get_match_rating(data[0], data[1])[-1]
         rating2 = self.get_match_rating(data[0], data[2])[-1]
-        data1 = calc_rating(self.get_match_rating(data[0], data[1])[-1], self.get_match_rating(x[0], data[2])[-1], pp, 1 - pp)
+        data1 = calc_rating(self.get_match_rating(data[0], data[1])[-1], self.get_match_rating(x[0], data[2])[-1], pp,
+                            1 - pp)
         self.add_rating_update(data[0], data[1], data1[0])
         self.add_rating_update(data[0], data[2], data1[1])
-        embed = discord.Embed(description=f"<@{data[1]}> {rating1} -> {data1[0]}\n<@{data[2]}> {rating2} -> {data1[1]}", color=discord.Color.blurple())
+        embed = discord.Embed(description=f"<@{data[1]}> {rating1} -> {data1[0]}\n<@{data[2]}> {rating2} -> {data1[1]}",
+                              color=discord.Color.blurple())
         embed.set_author(name="Rating changes")
         await channel.send(embed=embed)
 
@@ -776,7 +789,7 @@ class DbConn:
         for i in range(0, 5):
             if status[i] != '0':
                 continue
-            pts += f"{(i+1)*100}\n"
+            pts += f"{(i + 1) * 100}\n"
             name += f"[{self.get_problem_name(problems[i].split('/')[0], problems[i].split('/')[1])}](https://codeforces.com/problemset/problem/{problems[i]})\n"
             rate += f"{(i * 100) + rating}\n"
         embed = discord.Embed(color=discord.Color.green())
@@ -821,7 +834,8 @@ class DbConn:
                     VALUES
                     (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
-        curr.execute(query, (data[0], data[1], data[2], data[3], int(time.time()), data[7], result, int(time.time())-data[4]))
+        curr.execute(query, (
+        data[0], data[1], data[2], data[3], int(time.time()), data[7], result, int(time.time()) - data[4]))
         self.conn.commit()
         curr.close()
 
@@ -843,16 +857,18 @@ class DbConn:
                 b = 0
                 for i in range(0, 5):
                     if x[7][i] == '1':
-                        a += (i+1)*100
+                        a += (i + 1) * 100
                     if x[7][i] == '2':
-                        b += (i+1)*100
+                        b += (i + 1) * 100
                     if x[7][i] == '3':
                         a += (i + 1) * 50
                         b += (i + 1) * 50
-                tme = int(time.time())-x[4]
-                m = int(tme/60)
-                s = tme%60
-                resp.append([str(c), self.get_handle(guild, x[1]), self.get_handle(guild, x[2]), str(x[3]), f"{m}m {s}s", f"{a}-{b}"])
+                tme = int(time.time()) - x[4]
+                m = int(tme / 60)
+                s = tme % 60
+                resp.append(
+                    [str(c), self.get_handle(guild, x[1]), self.get_handle(guild, x[2]), str(x[3]), f"{m}m {s}s",
+                     f"{a}-{b}"])
                 c += 1
             except Exception as e:
                 print(e)
@@ -1012,7 +1028,7 @@ class DbConn:
         self.conn.commit()
         curr.close()
 
-    def get_ranklist(self, ctx):
+    async def get_ranklist(self, ctx):
         data = []
         query = """
                     SELECT guild, id, rating FROM rating
@@ -1022,7 +1038,7 @@ class DbConn:
                     idx ASC
                 """
         curr = self.conn.cursor()
-        curr.execute(query, (ctx.guild.id, ))
+        curr.execute(query, (ctx.guild.id,))
         resp = curr.fetchall()
         curr.close()
         resp.reverse()
@@ -1035,7 +1051,7 @@ class DbConn:
                 if len(data1) <= 1:
                     continue
                 done.append(x[1])
-                data.append([ctx.guild.get_member(x[1]).name, x[2]])
+                data.append([(await ctx.guild.fetch_member(x[1])).name, x[2]])
             except Exception:
                 print("User not in server <printing ranklist>")
         return data
@@ -1050,7 +1066,7 @@ class DbConn:
         curr.close()
         return data[0]
 
-    def add_to_alt_table(self, ctx ,users ,handles):
+    def add_to_alt_table(self, ctx, users, handles):
         if handles is None:
             return
         query = f"""
@@ -1061,7 +1077,7 @@ class DbConn:
         curr = self.conn.cursor()
         curr.execute(query, (ctx.guild.id, ' '.join([f"{x.id}" for x in users]), ' '.join([f"{x}" for x in handles])))
         temp = self.conn.commit()
-        curr.close()        
+        curr.close()
 
     def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat, handles=None):
         query = f"""
@@ -1070,12 +1086,12 @@ class DbConn:
                     (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
         curr = self.conn.cursor()
-        times = ' '.join(['0']*len(users))
+        times = ' '.join(['0'] * len(users))
         curr.execute(query, (ctx.guild.id, ' '.join([f"{x.id}" for x in users]), ' '.join([f"{x}" for x in rating]),
                              ' '.join([f"{x}" for x in points]), int(time.time()), ctx.channel.id,
                              ' '.join([f"{x[0]}/{x[1]}" for x in problems]), ' '.join('0' for i in range(len(users))),
                              duration, repeat, times))
-        self.add_to_alt_table(ctx,users,handles)
+        self.add_to_alt_table(ctx, users, handles)
         self.conn.commit()
         curr.close()
 
@@ -1112,7 +1128,7 @@ class DbConn:
                     guild = %s
                 """
         curr = self.conn.cursor()
-        curr.execute(query, (guild, ))
+        curr.execute(query, (guild,))
         data = curr.fetchall()
         curr.close()
         return data
@@ -1128,8 +1144,9 @@ class DbConn:
                     guild = %s AND users = %s 
                 """
         curr = self.conn.cursor()
-        curr.execute(query, (' '.join([str(x) for x in status]), ' '.join(problems), ' '.join([str(x) for x in timestamp]),
-                             guild.id, ' '.join([str(x.id) for x in users])))
+        curr.execute(query,
+                     (' '.join([str(x) for x in status]), ' '.join(problems), ' '.join([str(x) for x in timestamp]),
+                      guild.id, ' '.join([str(x.id) for x in users])))
         self.conn.commit()
         curr.close()
 
@@ -1154,7 +1171,7 @@ class DbConn:
                 fset.append(x)
         return random.choice(fset) if len(fset) > 0 else None
 
-    def fetch_handles(self,guild,users):
+    def fetch_handles(self, guild, users):
         try:
             query = f"""
                     SELECT * FROM ongoing_round_alts
@@ -1171,7 +1188,6 @@ class DbConn:
         except Exception as e:
             print(f"Failed update of rounds {e}")
             return None
-
 
     async def update_rounds(self, client, guild=None):
         if not guild:
@@ -1190,7 +1206,7 @@ class DbConn:
         for x in data:
             try:
                 guild = client.get_guild(x[0])
-                users = [guild.get_member(int(x1)) for x1 in x[1].split()]
+                users = [await guild.fetch_member(int(x1)) for x1 in x[1].split()]
                 handles = [self.get_handle(guild.id, user.id) for user in users]
                 rating = [int(x1) for x1 in x[2].split()]
                 points = [int(x1) for x1 in x[3].split()]
@@ -1205,8 +1221,7 @@ class DbConn:
                 judging = False
 
                 subs = await self.get_subs(handles)
-                if not subs[0]:      
-                
+                if not subs[0]:
                     continue
                 subs = subs[1]
                 result = []
@@ -1227,7 +1242,7 @@ class DbConn:
                         judging = True
                         result.append([])
                         continue
-                    if min(times) > start + duration*60:
+                    if min(times) > start + duration * 60:
                         result.append([])
                         continue
 
@@ -1246,17 +1261,18 @@ class DbConn:
                     problems[i] = '0'
                     for j in range(len(result[i])):
                         status[result[i][j]] += points[i]
-                    await channel.send(embed=discord.Embed(description=f"{' '.join([f'{users[j].mention}' for j in result[i]])} has solved the problem worth {points[i]} points (problem number {i+1})",
-                                                           color=discord.Color.blue()))
+                    await channel.send(embed=discord.Embed(
+                        description=f"{' '.join([f'{users[j].mention}' for j in result[i]])} has solved the problem worth {points[i]} points (problem number {i + 1})",
+                        color=discord.Color.blue()))
 
                 # adding new problem ............................
 
-                temp = self.fetch_handles(guild.id,users)
+                temp = self.fetch_handles(guild.id, users)
                 if temp is not None:
                     for handle in temp:
                         if handle not in handles:
                             handles.append(handle)
-                
+
                 if done and repeat > 0:
                     all_subs = await self.get_user_problems(handles)
                     if not all_subs[0]:
@@ -1264,7 +1280,8 @@ class DbConn:
                     all_subs = all_subs[1]
                     for prob in problems:
                         if prob != '0':
-                            all_subs.append([prob.split('/')[0], prob.split('/')[1], self.get_problem_name(prob.split('/')[0], prob.split('/')[1])])
+                            all_subs.append([prob.split('/')[0], prob.split('/')[1],
+                                             self.get_problem_name(prob.split('/')[0], prob.split('/')[1])])
                     all_prob = self.get_problems()
                     for i in range(len(problems)):
                         if problems[i] == '0':
@@ -1282,30 +1299,35 @@ class DbConn:
 
                 # printing ................................
 
-                if (enter_time > start + duration*60 or (repeat == 0 and self.no_change_possible(status[:], points, problems))) and not judging:
-                    await channel.send(f"{' '.join([f'{user.mention}'for user in users])} match over, here are the final standings:")
+                if (enter_time > start + duration * 60 or (
+                        repeat == 0 and self.no_change_possible(status[:], points, problems))) and not judging:
+                    await channel.send(
+                        f"{' '.join([f'{user.mention}' for user in users])} match over, here are the final standings:")
                     await channel.send(embed=self.print_round_score(users, status, timestamp, guild.id, 1))
                     if len(users) > 1:
                         self.finish_round(x)
                     self.delete_round(guild.id, users[0].id)
                 elif done:
-                    await channel.send(f"{' '.join([f'{user.mention}' for user in users])} there is an update in standings")
+                    await channel.send(
+                        f"{' '.join([f'{user.mention}' for user in users])} there is an update in standings")
 
                     pname = []
                     for prob in problems:
                         if prob == '0':
-                            pname.append('No unsolved problems of this rating left' if repeat == 1 else "This problem has been solved")
+                            pname.append(
+                                'No unsolved problems of this rating left' if repeat == 1 else "This problem has been solved")
                         else:
                             id = prob.split('/')[0]
                             idx = prob.split('/')[1]
-                            pname.append(f"[{self.get_problem_name(id, idx)}](https://codeforces.com/problemset/problem/{prob})")
+                            pname.append(
+                                f"[{self.get_problem_name(id, idx)}](https://codeforces.com/problemset/problem/{prob})")
 
                     embed = discord.Embed(color=discord.Color.magenta())
                     embed.set_author(name=f"Problems left")
                     embed.add_field(name="Points", value='\n'.join(x[3].split()), inline=True)
                     embed.add_field(name="Problem", value='\n'.join(pname), inline=True)
                     embed.add_field(name="Rating", value='\n'.join(x[2].split()), inline=True)
-                    embed.set_footer(text=f"Time left: {timeez(start+60*duration-int(time.time()))}")
+                    embed.set_footer(text=f"Time left: {timeez(start + 60 * duration - int(time.time()))}")
                     await channel.send(embed=embed)
                     await channel.send(embed=self.print_round_score(users, status, timestamp, guild.id, 0))
                 await asyncio.sleep(1)
@@ -1352,7 +1374,7 @@ class DbConn:
                     WHERE guild = %s AND users LIKE %s
                     ORDER BY end_time DESC
                 """
-        curr =self.conn.cursor()
+        curr = self.conn.cursor()
         curr.execute(query, (guild, f"%{user}%"))
         data = curr.fetchall()
         curr.close()
@@ -1384,7 +1406,8 @@ class DbConn:
         ELO = elo.ELOMatch()
         ranks.sort(key=cmp_to_key(comp))
         for i in range(len(users)):
-            ELO.addPlayer(users[i].id, [[x[0], x[1]] for x in ranks].index([status[i], timestamp[i]])+1, self.get_match_rating(guild, users[i].id)[-1])
+            ELO.addPlayer(users[i].id, [[x[0], x[1]] for x in ranks].index([status[i], timestamp[i]]) + 1,
+                          self.get_match_rating(guild, users[i].id)[-1])
         ELO.calculateELOs()
 
         embed = discord.Embed(color=discord.Color.dark_blue())
@@ -1399,11 +1422,10 @@ class DbConn:
             old_ = new_ - ELO.getELOChange(x[2].id)
             if over == 1:
                 self.add_rating_update(guild, x[2].id, new_)
-            desc += f"{old_} --> {new_} ({'+' if new_>=old_ else ''}{new_-old_})**\n\n"
+            desc += f"{old_} --> {new_} ({'+' if new_ >= old_ else ''}{new_ - old_})**\n\n"
             embed.add_field(name=f"Rank {pos}", value=desc, inline=False)
 
         return embed
-
 
     def no_change_possible(self, status, points, problems):
         status.sort()
@@ -1411,24 +1433,25 @@ class DbConn:
         for i in range(len(points)):
             if problems[i] != '0':
                 sum = sum + points[i]
-        for i in range(len(status)-1):
-            if status[i] + sum >= status[i+1]:
+        for i in range(len(status) - 1):
+            if status[i] + sum >= status[i + 1]:
                 return False
         if len(status) == 1 and sum > 0:
             return False
         return True
+
 
 def match_over(status):
     a = 0
     b = 0
     for i in range(0, 5):
         if status[i] == '1':
-            a += (i+1)*100
+            a += (i + 1) * 100
         if status[i] == '2':
-            b += (i+1)*100
+            b += (i + 1) * 100
         if status[i] == '3':
-            a += (i+1)*50
-            b += (i+1)*50
+            a += (i + 1) * 50
+            b += (i + 1) * 50
     if a >= 800 or b >= 800:
         return [True, a, b]
     else:
@@ -1471,8 +1494,8 @@ def all_done(status):
 
 
 def calc_rating(rate1, rate2, c1, c2):
-    p1 = 1/(1+10**((rate2-rate1)/400))
-    p2 = 1/(1+10**((rate1-rate2)/400))
+    p1 = 1 / (1 + 10 ** ((rate2 - rate1) / 400))
+    p2 = 1 / (1 + 10 ** ((rate1 - rate2) / 400))
 
-    delt = int(80*(c1 - p1))
+    delt = int(80 * (c1 - p1))
     return [int(rate1 + delt), int(rate2 - delt)]

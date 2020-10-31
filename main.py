@@ -14,8 +14,10 @@ from discord.ext.commands import CommandNotFound, CommandOnCooldown, MissingPerm
 
 from utils import cf_api
 
+intents = discord.Intents.default()
+intents.members = False
 client = Bot(description="A Discord bot to compete with each other using codeforces problems",
-             command_prefix=when_mentioned_or("."))
+             command_prefix=when_mentioned_or("."), intents=intents)
 uptime = 0
 
 db = dbconn.DbConn()

@@ -151,7 +151,7 @@ class Handles(commands.Cog):
         data1 = []
         for x in data:
             try:
-                data1.append([ctx.guild.get_member(int(x[1])).name, x[2], x[3]])
+                data1.append([(await ctx.guild.fetch_member(int(x[1]))).name, x[2], x[3]])
             except Exception as e:
                 print(e)
         data = data1

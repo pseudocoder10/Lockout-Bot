@@ -88,7 +88,7 @@ class Round(commands.Cog):
                 if elements[0].lower() == "none":
                     return True
             if elements[0].lower() != "alts:" :
-                return False 
+                return False
             return True
 
         try:
@@ -121,7 +121,7 @@ class Round(commands.Cog):
         standings.sort(key=cmp_to_key(comp))
         standings1.sort(key=cmp_to_key(comp))
 
-        msg = ' vs '.join([f"{standings[i][2].mention} `Rank {standings1.index([standings[i][0], standings[i][1]])+1}` `{standings[i][0]} Points`" for i in range(len(users))])
+        msg = ' vs '.join([f"[{standings[i][2].name}](https://imgur.com/gallery/pmSuXlo) `Rank {standings1.index([standings[i][0], standings[i][1]])+1}` `{standings[i][0]} Points`" for i in range(len(users))])
         msg += f"\n**Problem ratings:** {rating}"
         msg += f"\n**Score distribution** {problem_points}"
         msg += f"\n**Duration:** {timeez(duration)}\n\n"
@@ -224,14 +224,14 @@ class Round(commands.Cog):
                 await ctx.send(f"{i.name} is already in a round!")
                 return
 
-        check = False 
+        check = False
         start_time = get_time()
         First = True
         handles = [self.db.get_handle(ctx.guild.id, user.id) for user in users]
 
         while get_time() - start_time < 60:
             if First:
-                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users\ntype None if not applicable \nFormat \"Alts: handle_1 handle_2 .. \n\"len(handles) <= 2*len(users) must be satisfied", 60, ctx.author)
+                alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} Do you want to add any alts? Type none if not applicable else type `alts: handle_1 handle_2 ...` You can add upto **{len(handles)}** alt(s)", 60, ctx.author)
                 First = False
             else:
                 alts = await self.get_alt_response(self.client, ctx, f"{ctx.author.mention} add alts of users", 60, ctx.author)
@@ -251,20 +251,20 @@ class Round(commands.Cog):
                         res = await self.api.check_handle(alt)
                         if not res[0]:
                             await ctx.send(f"{ctx.author.mention} " + alt + " is not valid codeforces handle, try again")
-                            check = False 
+                            check = False
                             break
                     alts.extend(handles)
                     alts = list(set(alts))
                     if len(alts) > 2*len(users):
-                        await ctx.send(f"{ctx.author.mention} len(handles) <= 2*len(users) must be satisfied")
+                        await ctx.send(f"{ctx.author.mention} You can only add upto **{len(handles)}** alt(s)")
                         check = False
                     if check:
                         handles = alts
                         break
 
-        if not check: 
+        if not check:
             await ctx.send(f"{ctx.author.mention} you took too long to decide")
-            return 
+            return
 
         await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
 
@@ -303,7 +303,7 @@ class Round(commands.Cog):
         embed = []
         for x in data:
             try:
-                users = [ctx.guild.get_member(int(x1)) for x1 in x[1].split()]
+                users = [await ctx.guild.fetch_member(int(x1)) for x1 in x[1].split()]
                 status = [int(x1) for x1 in x[7].split()]
                 timestamp = [int(x1) for x1 in x[10].split()]
                 embed_ = self.db.print_round_score(users, status, timestamp, ctx.guild.id, 0)
@@ -363,9 +363,9 @@ class Round(commands.Cog):
 
         for x in data:
             try:
-                content.append(self.make_result_embed([ctx.guild.get_member(int(i)) for i in x[1].split()],
-                                                    [int(i) for i in x[7].split()], [int(i) for i in x[10].split()],
-                                                    x[2], x[3], x[11] - x[4]))
+                content.append(self.make_result_embed([await ctx.guild.fetch_member(int(i)) for i in x[1].split()],
+                                                      [int(i) for i in x[7].split()], [int(i) for i in x[10].split()],
+                                                      x[2], x[3], x[11] - x[4]))
             except Exception as e:
                 print(e)
 
@@ -416,7 +416,7 @@ class Round(commands.Cog):
 
         data = self.db.get_round_info(ctx.guild.id, ctx.author.id)
         try:
-            users = [ctx.guild.get_member(int(x)) for x in data[1].split()]
+            users = [await ctx.guild.fetch_member(int(x)) for x in data[1].split()]
         except Exception:
             await ctx.send(f"{ctx.author.mention} some error occurred! Maybe one of the participants left the server")
             return
