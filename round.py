@@ -99,10 +99,12 @@ class Round(commands.Cog):
 
     def get_unsolved_problem(self, solved, total, handles, rating):
         fset = []
+        weight = []
         for x in total:
             if x[2] not in [name[2] for name in solved] and not self.db.is_an_author(x[0], handles) and x[4] == rating:
                 fset.append(x)
-        return random.choice(fset) if len(fset) > 0 else None
+                weight.append(x[0])
+        return random.choices(fset, weight, k=1)[0] if len(fset) > 0 else None
 
     def make_result_embed(self, users, points, times, rating, problem_points, duration):
         def comp(a, b):
@@ -175,19 +177,27 @@ class Round(commands.Cog):
         message = await ctx.send(embed=embed)
         await message.add_reaction("✅")
 
-        await asyncio.sleep(30)
-        message = await ctx.channel.fetch_message(message.id)
+        all_reacted = False
+        for i in range(15):
+            await asyncio.sleep(2)
+            try:
+                msg = await ctx.channel.fetch_message(message.id)
+                reaction = None
+                for x in msg.reactions:
+                    if x.emoji == "✅":
+                        reaction = x
 
-        reaction = None
-        for x in message.reactions:
-            if x.emoji == "✅":
-                reaction = x
+                reacted = await reaction.users().flatten()
+                all_reacted = all(item in reacted for item in users)
+                if all_reacted:
+                    break
+                pass
+            except Exception:
+                pass
 
-        reacted = await reaction.users().flatten()
-        for i in users:
-            if i not in reacted:
-                await ctx.send(f"Unable to start round, {i.name} did not react in time!")
-                return
+        if not all_reacted:
+            await ctx.send(f"Unable to start round, some participant(s) did not react in time!")
+            return
 
         problem_cnt = await get_time_response(self.client, ctx, f"{ctx.author.mention} enter the number of problems between [1, 6]", 30, ctx.author, [1, 6])
         if not problem_cnt[0]:
