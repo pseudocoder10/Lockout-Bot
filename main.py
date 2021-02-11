@@ -1,149 +1,90 @@
 import discord
-from discord.ext import commands, tasks
+import os
+import datetime
+
 from discord.ext.commands import Bot, when_mentioned_or
-from os import environ
-from discord import Game
-from data import dbconn
-import time, asyncio
-from datetime import datetime
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from discord.ext.commands import CommandNotFound, CommandOnCooldown, MissingPermissions, MissingRequiredArgument, BadArgument, MemberNotFound
 
-from humanfriendly import format_timespan as timeez
-from utils import scraper
-from discord.ext.commands import CommandNotFound, CommandOnCooldown, MissingPermissions, MissingRequiredArgument, \
-    BadArgument, MissingAnyRole
-
-from utils import cf_api
+from utils import tasks
+from constants import AUTO_UPDATE_TIME
 
 intents = discord.Intents.default()
 intents.members = False
-client = Bot(description="A Discord bot to compete with each other using codeforces problems",
-             command_prefix=when_mentioned_or("."), intents=intents)
-uptime = 0
+client = Bot(case_insensitive=True, description="Lockout Bot", command_prefix=when_mentioned_or("."), intents=intents)
 
-db = dbconn.DbConn()
-api = cf_api.CodeforcesAPI()
+logging_channel = None
 
 
 @client.event
 async def on_ready():
-    await client.change_presence(activity=Game(name="in matches | .help"))
-    print("Ready")
-    global uptime
-    uptime = int(time.time())
-    update_matches.start()
+    await client.change_presence(activity=discord.Game(name="in matches ⚔️"))
+    global logging_channel
+    logging_channel = await client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))
+    await logging_channel.send(f"Bot ready")
 
-root_users=[519879218402689024,515920333623263252]
-
-@client.command(hidden=True)
-async def update_db(ctx):
-    if ctx.author.id not in root_users:
-        return
-    await db.update_db(ctx)
-
-
-@client.command(hidden=True)
-async def updateratings(ctx):
-    if ctx.author.id not in root_users:
-        return
-    await ctx.send("Updating ratings")
-    data = db.get_overall_handles()
-    i = 0
-    for x in data:
-        if i%4 == 0:
-            await asyncio.sleep(1)
-        i += 1
-        try:
-            rating = await api.get_rating(x[0])
-            db.update_rating(x[0], rating)
-        except Exception as e:
-            print(f"update error {e}")
-    await ctx.send("Ratings updated")
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(update, 'interval', seconds=AUTO_UPDATE_TIME)
+    scheduler.add_job(tasks.create_backup, CronTrigger(hour="0, 6, 12, 18", timezone="Asia/Kolkata"), [client])
+    scheduler.add_job(tasks.update_ratings, CronTrigger(minute="30", timezone="Asia/Kolkata"), [client])
+    scheduler.add_job(tasks.update_problemset, CronTrigger(hour="8", timezone="Asia/Kolkata"), [client])
+    scheduler.add_job(tasks.scrape_authors, CronTrigger(day_of_week="0", timezone="Asia/Kolkata"), [client])
+    scheduler.start()
 
 
-@client.command(hidden=True)
-async def scrape_(ctx):
-    if ctx.author.id not in root_users:
-        return
-    await ctx.send("Scraping data")
-    scraper.run()
-    await ctx.send("Data scraped")
+async def update():
+    await tasks.update_matches(client)
+    await tasks.update_rounds(client)
 
 
 @client.event
-async def on_command_error(ctx: commands.Context, error: Exception):
+async def on_command_error(ctx: discord.ext.commands.Context, error: Exception):
     if isinstance(error, CommandNotFound):
         pass
 
     elif isinstance(error, CommandOnCooldown):
-        pass
+        tot = error.cooldown.per
+        rem = error.retry_after
+        msg = f"{ctx.author.mention} That command has a default cooldown of {str(datetime.timedelta(seconds=tot)).split('.')[0]}.\n"
+        msg += f"Please retry after {str(datetime.timedelta(seconds=rem)).split('.')[0]}."
+        embed = discord.Embed(description=msg, color=discord.Color.red())
+        embed.set_author(name=f"Slow down!")
+        await ctx.send(embed=embed)
+
+    elif isinstance(error, MemberNotFound):
+        command = ctx.command
+        command.reset_cooldown(ctx)
+        await ctx.send(embed=discord.Embed(description=f"`{str(error)}`\nTry mentioning the user instead of typing name/id", color=discord.Color.gold()))
 
     elif isinstance(error, BadArgument) or isinstance(error, MissingRequiredArgument):
         command = ctx.command
+        command.reset_cooldown(ctx)
         usage = f".{str(command)} "
         params = []
         for key, value in command.params.items():
             if key not in ['self', 'ctx']:
                 params.append(f"[{key}]" if "NoneType" in str(value) else f"<{key}>")
         usage += ' '.join(params)
-        await ctx.send(f"Usage: **{usage}**")
+        await ctx.send(embed=discord.Embed(description=f"The correct usage is: `{usage}`", color=discord.Color.gold()))
 
-    elif isinstance(error, MissingPermissions) or isinstance(error, MissingAnyRole):
+    elif isinstance(error, MissingPermissions):
         await ctx.send(f"{str(error)}")
 
     else:
-        print(f"{ctx.author.id} {ctx.guild.id} {ctx.message.content}")
-        print(error)
-
-
-@client.command()
-async def botinfo(ctx):
-    handles = db.get_count('handles')
-    matches = db.get_count('finished') 
-    rounds = db.get_count('finished_rounds')
-    guilds = len(client.guilds)
-    uptime_ = int(time.time()) - uptime
-
-    embed = discord.Embed(description="A discord bot to compete with others on codeforces in a Lockout format", color=discord.Color.magenta())
-    embed.set_author(name="Bot Stats", icon_url=client.user.avatar_url)
-    embed.set_thumbnail(url=client.user.avatar_url)
-
-    embed.add_field(name="Handles Set", value=f"**{handles}**", inline=True)
-    embed.add_field(name="Matches played", value=f"**{matches}**", inline=True)
-    embed.add_field(name="Rounds played", value=f"**{rounds}**", inline=True)
-    embed.add_field(name="Servers", value=f"**{guilds}**", inline=True)
-    embed.add_field(name="Uptime", value=f"**{timeez(uptime_)}**", inline=True)
-    embed.add_field(name="\u200b", value=f"\u200b", inline=True)
-    embed.add_field(name="GitHub repository", value=f"[GitHub](https://github.com/pseudocoder10/Lockout-Bot)", inline=True)
-    embed.add_field(name="Bot Invite link", value=f"[Invite](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot)",
-                    inline=True)
-    embed.add_field(name="Support Server", value=f"[Server](https://discord.gg/xP2UPUn)",
-                    inline=True)
-
-    await ctx.send(embed=embed)
-
-
-@tasks.loop(seconds=60)
-async def update_matches():
-    print(f"Attempting to auto update matches at {datetime.fromtimestamp(int(time.time())).strftime('%A, %B %d, %Y %I:%M:%S')}")
-    try:
-        await db.update_matches(client)
-    except Exception as e:
-        print(f"Failed to auto update matches {str(e)}")
-
-    try:
-        await db.update_rounds(client)
-    except Exception as e:
-        print(f"Failed to auto update rounds {e}")
+        desc = f"{ctx.author.name}({ctx.author.id}) {ctx.guild.name}({ctx.guild.id}) {ctx.message.content}\n"
+        desc += f"**{str(error)}**"
+        await logging_channel.send(desc)
 
 
 if __name__ == "__main__":
-    client.load_extension("handles")
-    client.load_extension("matches")
-    client.load_extension("help")
-    client.load_extension("round")
+    for filename in os.listdir('./cogs'):
+        if filename.endswith('.py'):
+            try:
+                client.load_extension(f'cogs.{filename[:-3]}')
+            except Exception as e:
+                print(f'Failed to load file {filename}: {str(e)}')
+                print(str(e))
 
-token = environ.get('BOT_TOKEN')
-if not token:
-    print('Bot token not found!')
-else:
+    token = os.environ.get('LOCKOUT_BOT_TOKEN')
     client.run(token)

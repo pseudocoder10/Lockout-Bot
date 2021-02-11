@@ -2,15 +2,13 @@ import discord
 
 from discord.ext import commands
 from discord.ext.commands import BucketType
-from humanfriendly import format_timespan as timeez
 
-from data import dbconn
+from constants import SERVER_INVITE, BOT_INVITE, GITHUB_LINK
 
 
 class Help(commands.Cog):
     def __init__(self, client):
         self.client = client
-        self.db = dbconn.DbConn()
         self.client.remove_command("help")
 
     def make_help_embed(self, ctx):
@@ -19,24 +17,24 @@ class Help(commands.Cog):
         match = self.client.get_command('match')
         round = self.client.get_command('round')
 
-        desc += "Handle related commands **[use .handle <command>]**\n\n"
+        desc += ":crossed_swords: Handle related commands **[use .handle <command>]**\n\n"
         for cmd in handle.commands:
             desc += f"`{cmd.name}`: **{cmd.brief}**\n"
-        desc += "\n\nMatch related commands **[use .match <command>]**\n\n"
+        desc += "\n\n:crossed_swords: Match related commands **[use .match <command>]**\n\n"
         for cmd in match.commands:
             desc += f"`{cmd.name}`: **{cmd.brief}**\n"
-        desc += "\n\nRound related commands **[use .round <command>]**\n\n"
+        desc += "\n\n:crossed_swords: Round related commands **[use .round <command>]**\n\n"
         for cmd in round.commands:
             desc += f"`{cmd.name}`: **{cmd.brief}**\n"
         embed = discord.Embed(description=desc, color=discord.Color.dark_magenta())
         embed.set_author(name="Lockout commands help", icon_url=ctx.me.avatar_url)
         embed.set_footer(text="Use the prefix . before each command. For detailed usage about a particular command, type .help <command>")
-        embed.add_field(name="GitHub repository", value=f"[GitHub](https://github.com/pseudocoder10/Lockout-Bot)",
+        embed.add_field(name="GitHub repository", value=f"[GitHub]({GITHUB_LINK})",
                         inline=True)
         embed.add_field(name="Bot Invite link",
-                        value=f"[Invite](https://discord.com/oauth2/authorize?client_id=669978762120790045&permissions=0&scope=bot)",
+                        value=f"[Invite]({BOT_INVITE})",
                         inline=True)
-        embed.add_field(name="Support Server", value=f"[Server](https://discord.gg/xP2UPUn)",
+        embed.add_field(name="Support Server", value=f"[Server]({SERVER_INVITE})",
                         inline=True)
         return embed
 

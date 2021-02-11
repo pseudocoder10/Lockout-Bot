@@ -70,3 +70,16 @@ class ELOMatch:
                     # add accumulated change to initial ELO for final ELO
 
             self.players[i].eloPost = self.players[i].eloPre + self.players[i].eloChange
+
+
+# ranklist = [[DiscordUser, rank, elo]]
+def calculateChanges(ranklist):
+    ELO = ELOMatch()
+    for player in ranklist:
+        ELO.addPlayer(player[0].id, player[1], player[2])
+    ELO.calculateELOs()
+    res = {}
+    for player in ranklist:
+        res[player[0].id] = [ELO.getELO(player[0].id), ELO.getELOChange(player[0].id)]
+    return res
+
