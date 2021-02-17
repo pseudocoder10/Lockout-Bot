@@ -370,6 +370,97 @@ class Round(commands.Cog):
         round_info = self.db.get_round_info(ctx.guild.id, member.id)
         await ctx.send(embed=discord_.round_problems_embed(round_info))
 
+    @round.command(name="custom", brief="Challenge to a round with custom problemset")
+    async def custom(self, ctx, *users: discord.Member):
+        users = list(set(users))
+        if len(users) == 0:
+            await discord_.send_message(ctx, f"The correct usage is `.round custom @user1 @user2...`")
+            return
+        if ctx.author not in users:
+            users.append(ctx.author)
+        if len(users) > MAX_ROUND_USERS:
+            await ctx.send(f"{ctx.author.mention} atmost {MAX_ROUND_USERS} users can compete at a time")
+            return
+        for i in users:
+            if not self.db.get_handle(ctx.guild.id, i.id):
+                await discord_.send_message(ctx, f"Handle for {i.mention} not set! Use `.handle identify` to register")
+                return
+            if self.db.in_a_round(ctx.guild.id, i.id):
+                await discord_.send_message(ctx, f"{i.mention} is already in a round!")
+                return
+
+        embed = discord.Embed(
+            description=f"{' '.join(x.mention for x in users)} react on the message with ✅ within 30 seconds to join the round. {'Since you are the only participant, this will be a practice round and there will be no rating changes' if len(users) == 1 else ''}",
+            color=discord.Color.purple())
+        message = await ctx.send(embed=embed)
+        await message.add_reaction("✅")
+
+        all_reacted = False
+        reacted = []
+
+        def check(reaction, user):
+            return reaction.message.id == message.id and reaction.emoji == "✅" and user in users
+
+        while True:
+            try:
+                reaction, user = await self.client.wait_for('reaction_add', timeout=30, check=check)
+                reacted.append(user)
+                if all(item in reacted for item in users):
+                    all_reacted = True
+                    break
+            except asyncio.TimeoutError:
+                break
+
+        if not all_reacted:
+            await discord_.send_message(ctx, f"Unable to start round, some participant(s) did not react in time!")
+            return
+
+        problem_cnt = await discord_.get_time_response(self.client, ctx,
+                                                       f"{ctx.author.mention} enter the number of problems between [1, {MAX_PROBLEMS}]",
+                                                       30, ctx.author, [1, MAX_PROBLEMS])
+        if not problem_cnt[0]:
+            await discord_.send_message(ctx, f"{ctx.author.mention} you took too long to decide")
+            return
+        problem_cnt = problem_cnt[1]
+
+        duration = await discord_.get_time_response(self.client, ctx,
+                                                    f"{ctx.author.mention} enter the duration of match in minutes between {MATCH_DURATION}",
+                                                    30, ctx.author, MATCH_DURATION)
+        if not duration[0]:
+            await discord_.send_message(ctx, f"{ctx.author.mention} you took too long to decide")
+            return
+        duration = duration[1]
+
+        problems = await discord_.get_problems_response(self.client, ctx,
+                                                 f"{ctx.author.mention} enter {problem_cnt} space seperated problem ids denoting the problems. Eg: `123/A 455/B 242/C ...`",
+                                                 60, problem_cnt, ctx.author)
+        if not problems[0]:
+            await discord_.send_message(ctx, f"{ctx.author.mention} you took too long to decide")
+            return
+        problems = problems[1]
+
+        points = await discord_.get_seq_response(self.client, ctx,
+                                                 f"{ctx.author.mention} enter {problem_cnt} space seperated integer denoting the points of problems (between 100 and 10,000)",
+                                                 60, problem_cnt, ctx.author, [100, 10000])
+        if not points[0]:
+            await discord_.send_message(ctx, f"{ctx.author.mention} you took too long to decide")
+            return
+        points = points[1]
+
+        for i in users:
+            if self.db.in_a_round(ctx.guild.id, i.id):
+                await discord_.send_message(ctx, f"{i.name} is already in a round!")
+                return
+
+        await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
+
+        rating = [problem.rating for problem in problems]
+
+        self.db.add_to_ongoing_round(ctx, users, rating, points, problems, duration, 0, [])
+        round_info = self.db.get_round_info(ctx.guild.id, users[0].id)
+
+        await ctx.send(embed=discord_.round_problems_embed(round_info))
+
 
 def setup(client):
     client.add_cog(Round(client))

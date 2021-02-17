@@ -109,6 +109,32 @@ async def get_alt_response(client, ctx, message, limit, time, author):
             return False
 
 
+async def get_problems_response(client, ctx, message, time, length, author):
+    original = await ctx.send(message)
+
+    def check(m):
+        if m.author != author:
+            return False
+        data = m.content.split()
+        if len(data) != length:
+            return False
+        for i in data:
+            problem = i.split('/')
+            if len(problem) != 2:
+                return False
+            if not db.get_problems(i.upper()):
+                return False
+        return True
+
+    try:
+        msg = await client.wait_for('message', timeout=time, check=check)
+        await original.delete()
+        return [True, [db.get_problems(x.upper())[0] for x in msg.content.split()]]
+    except asyncio.TimeoutError:
+        await original.delete()
+        return [False]
+
+
 def match_problems_embed(match_info):
     a, b = match_score(match_info.status)
     problems = match_info.problems.split()
