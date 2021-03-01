@@ -16,6 +16,7 @@ class Help(commands.Cog):
         handle = self.client.get_command('handle')
         match = self.client.get_command('match')
         round = self.client.get_command('round')
+        tournament = self.client.get_command('tournament')
 
         desc += ":crossed_swords: Handle related commands **[use .handle <command>]**\n\n"
         for cmd in handle.commands:
@@ -26,6 +27,7 @@ class Help(commands.Cog):
         desc += "\n\n:crossed_swords: Round related commands **[use .round <command>]**\n\n"
         for cmd in round.commands:
             desc += f"`{cmd.name}`: **{cmd.brief}**\n"
+
         embed = discord.Embed(description=desc, color=discord.Color.dark_magenta())
         embed.set_author(name="Lockout commands help", icon_url=ctx.me.avatar_url)
         embed.set_footer(text="Use the prefix . before each command. For detailed usage about a particular command, type .help <command>")
@@ -36,7 +38,24 @@ class Help(commands.Cog):
                         inline=True)
         embed.add_field(name="Support Server", value=f"[Server]({SERVER_INVITE})",
                         inline=True)
-        return embed
+
+        desc = "\n\n:crossed_swords: Tournament related commands **[use .tournament <command>]**\n\n"
+        for cmd in tournament.commands:
+            desc += f"`{cmd.name}`: **{cmd.brief}**\n"
+
+        embed1 = discord.Embed(description=desc, color=discord.Color.dark_magenta())
+        embed1.set_author(name="Lockout commands help", icon_url=ctx.me.avatar_url)
+        embed1.set_footer(
+            text="Use the prefix . before each command. For detailed usage about a particular command, type .help <command>")
+        embed1.add_field(name="GitHub repository", value=f"[GitHub]({GITHUB_LINK})",
+                        inline=True)
+        embed1.add_field(name="Bot Invite link",
+                        value=f"[Invite]({BOT_INVITE})",
+                        inline=True)
+        embed1.add_field(name="Support Server", value=f"[Server]({SERVER_INVITE})",
+                        inline=True)
+
+        return [embed, embed1]
 
     def make_cmd_embed(self, command):
         usage = f".{str(command)} "
@@ -57,7 +76,8 @@ class Help(commands.Cog):
     async def help(self, ctx, *, cmd: str=None):
         """Shows help for various commands"""
         if cmd is None:
-            await ctx.send(embed=self.make_help_embed(ctx))
+            for embed in self.make_help_embed(ctx):
+                await ctx.send(embed=embed)
         else:
             command = self.client.get_command(cmd)
             if command is None or command.hidden:

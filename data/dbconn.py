@@ -95,7 +95,8 @@ class DbConn:
                             status TEXT,
                             duration BIGINT,
                             repeat BIGINT,
-                            times TEXT
+                            times TEXT,
+                            tournament BIGINT
                     )
                     """)
         cmds.append("""
@@ -119,6 +120,36 @@ class DbConn:
                             repeat BIGINT,
                             times TEXT,
                             end_time INT
+                    )
+                    """)
+        cmds.append("""
+                        CREATE TABLE IF NOT EXISTS tournament_info(
+                            guild BIGINT,
+                            name TEXT,
+                            type INT,
+                            id BIGINT,
+                            url TEXT,
+                            status INT
+                    )
+                    """)
+        cmds.append("""
+                        CREATE TABLE IF NOT EXISTS finished_tournaments(
+                            guild BIGINT,
+                            name TEXT,
+                            type INT,
+                            id BIGINT,
+                            url TEXT,
+                            winner TEXT,
+                            time BIGINT
+                    )
+                    """)
+        cmds.append("""
+                        CREATE TABLE IF NOT EXISTS registrants(
+                            guild BIGINT,
+                            discord_id BIGINT,
+                            handle TEXT,
+                            rating INT,
+                            challonge_id BIGINT
                     )
                     """)
         try:
@@ -188,6 +219,19 @@ class DbConn:
         curr.execute(query, (guild, discord_id))
         self.conn.commit()
         curr.close()
+
+    def get_handle_info(self, guild, discord_id):
+        query = f"""
+                    SELECT * FROM handles
+                    WHERE
+                    guild = %s AND
+                    discord_id = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, discord_id))
+        data = curr.fetchone()
+        curr.close()
+        return data
 
     def get_all_handles(self, guild=None):
         query = f"""
@@ -519,17 +563,17 @@ class DbConn:
             return True
         return False
 
-    def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat, alts):
+    def add_to_ongoing_round(self, ctx, users, rating, points, problems, duration, repeat, alts, tournament=0):
         query = f"""
                     INSERT INTO ongoing_rounds
                     VALUES
-                    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
         curr = self.conn.cursor()
         curr.execute(query, (ctx.guild.id, ' '.join([f"{x.id}" for x in users]), ' '.join(map(str, rating)),
                              ' '.join(map(str, points)), int(time.time()), ctx.channel.id,
                              ' '.join([f"{x.id}/{x.index}" for x in problems]), ' '.join('0' for i in range(len(users))),
-                             duration, repeat, ' '.join(['0'] * len(users))))
+                             duration, repeat, ' '.join(['0'] * len(users)), tournament))
         self.add_to_alt_table(ctx, users, alts)
         self.conn.commit()
         curr.close()
@@ -572,8 +616,8 @@ class DbConn:
         curr.execute(query, (guild, f"%{users}%"))
         data = curr.fetchone()
         curr.close()
-        Round = namedtuple('Round', 'guild users rating points time channel problems status duration repeat times')
-        return Round(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
+        Round = namedtuple('Round', 'guild users rating points time channel problems status duration repeat times, tournament')
+        return Round(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11])
 
     def get_all_rounds(self, guild=None):
         query = f"""
@@ -585,8 +629,8 @@ class DbConn:
         curr.execute(query)
         res = curr.fetchall()
         curr.close()
-        Round = namedtuple('Round', 'guild users rating points time channel problems status duration repeat times')
-        return [Round(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10]) for data in res]
+        Round = namedtuple('Round', 'guild users rating points time channel problems status duration repeat times, tournament')
+        return [Round(data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11]) for data in res]
 
     def update_round_status(self, guild, user, status, problems, timestamp):
         query = f"""
@@ -702,4 +746,172 @@ class DbConn:
         data = curr.fetchone()
         curr.close()
         return data[0]
+
+    def get_tournament_info(self, guild):
+        query = f"""
+                    SELECT * FROM tournament_info
+                    WHERE guild = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, ))
+        data = curr.fetchone()
+        curr.close()
+        if not data:
+            return None
+        Tournament = namedtuple('Tournament', 'guild, name, type, id, url, status')
+        return Tournament(data[0], data[1], data[2], data[3], data[4], data[5])
+
+    def add_tournament(self, guild, name, type, id, url, status):
+        query = f"""
+                    INSERT INTO tournament_info
+                    VALUES
+                    (%s, %s, %s, %s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, name, type, id, url, status))
+        self.conn.commit()
+        curr.close()
+
+    def add_registrant(self, guild, discord_id, handle, rating, challonge_id):
+        query = f"""
+                    INSERT INTO registrants
+                    VALUES
+                    (%s, %s, %s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, discord_id, handle, rating, challonge_id))
+        self.conn.commit()
+        curr.close()
+
+    def remove_registrant(self, guild, discord_id):
+        query = f"""
+                    DELETE FROM registrants
+                    WHERE
+                    guild = %s AND discord_id = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, discord_id))
+        self.conn.commit()
+        curr.close()
+
+    def remove_registrant_by_handle(self, guild, handle):
+        query = f"""
+                    DELETE FROM registrants
+                    WHERE
+                    guild = %s AND handle = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, handle))
+        self.conn.commit()
+        res = curr.rowcount
+        curr.close()
+        return res
+
+    def get_registrants(self, guild):
+        query = f"""
+                    SELECT * FROM registrants
+                    WHERE guild = %s
+                    ORDER BY rating DESC
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, ))
+        data = curr.fetchall()
+        curr.close()
+        Registrant = namedtuple('Registrant', 'guild, discord_id, handle, rating, challonge_id')
+        return [Registrant(x[0], x[1], x[2], x[3], x[4]) for x in data]
+
+    def get_registrant_info(self, guild, challonge_id):
+        query = f"""
+                    SELECT * FROM registrants
+                    WHERE guild = %s AND challonge_id = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, challonge_id))
+        x = curr.fetchone()
+        curr.close()
+        Registrant = namedtuple('Registrant', 'guild, discord_id, handle, rating, challonge_id')
+        return Registrant(x[0], x[1], x[2], x[3], x[4])
+
+    def update_tournament_params(self, id, url, status, guild):
+        query = f"""
+                    UPDATE tournament_info
+                    SET 
+                    id = %s,
+                    url = %s,
+                    status = %s
+                    WHERE
+                    guild = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (id, url, status, guild))
+        self.conn.commit()
+        curr.close()
+
+    def map_user_to_challongeid(self, guild, discord_id, challonge_id):
+        query = f"""
+                    UPDATE registrants
+                    SET challonge_id = %s
+                    WHERE guild = %s AND discord_id = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (challonge_id, guild, discord_id))
+        self.conn.commit()
+        curr.close()
+
+    def get_challonge_id(self, guild, discord_id):
+        query = f"""
+                    SELECT challonge_id FROM registrants
+                    WHERE
+                    guild = %s AND discord_id = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, discord_id))
+        data = curr.fetchone()
+        curr.close()
+        if not data:
+            return None
+        return data[0]
+
+    def delete_tournament(self, guild):
+        query = f"""
+                    DELETE FROM tournament_info 
+                    WHERE guild = %s
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, ))
+        self.conn.commit()
+
+        query = f"""
+                    DELETE FROM registrants
+                    WHERE guild = %s
+                """
+        curr.execute(query, (guild, ))
+        self.conn.commit()
+        curr.close()
+
+    def add_to_finished_tournaments(self, tournament_info, winner):
+        query = f"""
+                    INSERT INTO finished_tournaments
+                    VALUES
+                    (%s, %s, %s, %s, %s, %s, %s)
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (tournament_info.guild, tournament_info.name, tournament_info.type, tournament_info.id,
+                             tournament_info.url, winner, int(time.time())))
+        self.conn.commit()
+        curr.close()
+
+    def get_recent_tournaments(self, guild):
+        query = f"""
+                    SELECT * FROM finished_tournaments
+                    WHERE guild = %s
+                    ORDER BY time DESC
+                """
+        curr = self.conn.cursor()
+        curr.execute(query, (guild, ))
+        data = curr.fetchall()
+        curr.close()
+        Tournament = namedtuple("Tournament", "guild name type id url winner time")
+        return [Tournament(x[0], x[1], x[2], x[3], x[4], x[5], x[6]) for x in data]
+
 

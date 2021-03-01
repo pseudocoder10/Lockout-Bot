@@ -2,17 +2,19 @@ import os
 import discord
 import time
 import traceback
+import asyncio
 
 from datetime import date
 from operator import itemgetter
 
 from data import dbconn
 from constants import BACKUP_DIR
-from utils import updation, discord_, elo, cf_api, scraper
+from utils import updation, discord_, elo, cf_api, scraper, tournament_helper, challonge_api
 
 
 db = dbconn.DbConn()
 cf = cf_api.CodeforcesAPI()
+api = None
 
 
 async def update_matches(client):
@@ -76,7 +78,9 @@ async def update_matches(client):
 
 async def update_rounds(client):
     rounds = db.get_all_rounds()
-
+    global api
+    if api is None:
+        api = challonge_api.ChallongeAPI(client)
     for round in rounds:
         try:
             guild = client.get_guild(round.guild)
@@ -130,6 +134,33 @@ async def update_rounds(client):
                 embed.add_field(name="Rating changes", value=ratingChange)
                 embed.set_author(name=f"Round over! Final standings")
                 await channel.send(embed=embed)
+
+                if round_info.tournament == 1:
+                    if ranklist[1].rank == 1:
+                        await discord_.send_message(channel, "Since the round ended in a draw, you will have to compete again for it to be counted in the tournament")
+                    else:
+                        res = await tournament_helper.validate_match(round_info.guild, ranklist[0].id, ranklist[1].id, api, db)
+                        if not res[0]:
+                            await discord_.send_message(channel, res[1] + "\n\nIf you think this is a mistake, type `.tournament forcewin <handle>` to grant victory to a user")
+                        else:
+                            scores = f"{ranklist[0].points}-{ranklist[1].points}" if res[1]['player1'] == res[1][ranklist[0].id] else f"{ranklist[1].points}-{ranklist[0].points}"
+                            match_resp = await api.post_match_results(res[1]['tournament_id'], res[1]['match_id'], scores, res[1][ranklist[0].id])
+                            if not match_resp or 'errors' in match_resp:
+                                await discord_.send_message(channel, "Some error occurred while validating tournament match. \n\nType `.tournament forcewin <handle>` to grant victory to a user manually")
+                                if match_resp and 'errors' in match_resp:
+                                    logging_channel = await client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))
+                                    await logging_channel.send(f"Error while validating tournament rounds: {match_resp['errors']}")
+                                continue
+                            winner_handle = db.get_handle(round_info.guild, ranklist[0].id)
+                            await discord_.send_message(channel, f"Congrats **{winner_handle}** for qualifying to the next round.\n\nTo view the list of future tournament rounds, type `.tournament matches`")
+                            if await tournament_helper.validate_tournament_completion(round_info.guild, api, db):
+                                await api.finish_tournament(res[1]['tournament_id'])
+                                await asyncio.sleep(3)
+                                winner_handle = await tournament_helper.get_winner(res[1]['tournament_id'], api)
+                                await channel.send(embed=tournament_helper.tournament_over_embed(round_info.guild, winner_handle, db))
+                                db.add_to_finished_tournaments(db.get_tournament_info(round_info.guild), winner_handle)
+                                db.delete_tournament(round_info.guild)
+
         except Exception as e:
             logging_channel = await client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))
             await logging_channel.send(f"Error while updating rounds: {str(traceback.format_exc())}")

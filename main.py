@@ -60,13 +60,16 @@ async def on_command_error(ctx: discord.ext.commands.Context, error: Exception):
     elif isinstance(error, BadArgument) or isinstance(error, MissingRequiredArgument):
         command = ctx.command
         command.reset_cooldown(ctx)
-        usage = f".{str(command)} "
+        usage = f"`.{str(command)} "
         params = []
         for key, value in command.params.items():
             if key not in ['self', 'ctx']:
                 params.append(f"[{key}]" if "NoneType" in str(value) else f"<{key}>")
         usage += ' '.join(params)
-        await ctx.send(embed=discord.Embed(description=f"The correct usage is: `{usage}`", color=discord.Color.gold()))
+        usage += '`'
+        if command.help:
+            usage += f"\n\n{command.help}"
+        await ctx.send(embed=discord.Embed(description=f"The correct usage is: {usage}", color=discord.Color.gold()))
 
     elif isinstance(error, MissingPermissions):
         await ctx.send(f"{str(error)}")

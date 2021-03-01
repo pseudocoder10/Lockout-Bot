@@ -1,6 +1,7 @@
 import discord
 import time
 import asyncio
+import math
 
 from humanfriendly import format_timespan as timeez
 
@@ -250,6 +251,50 @@ def ongoing_rounds_embed(data):
             pass
 
     return content
+
+
+async def content_pagination(content, client, PER_PAGE, heading, ctx, color, extra_text: str=""):
+    currPage = 0
+    totPage = math.ceil(len(content) / PER_PAGE)
+    text = '\n'.join(content[currPage * PER_PAGE: min(len(content), (currPage + 1) * PER_PAGE)])
+    embed = discord.Embed(description=text, color=color)
+    embed.set_author(name=heading)
+    embed.set_footer(text=f"Page {currPage + 1} of {totPage}")
+    message = await ctx.send(embed=embed, content=extra_text)
+
+    await message.add_reaction("⏮")
+    await message.add_reaction("◀")
+    await message.add_reaction("▶")
+    await message.add_reaction("⏭")
+
+    def check(reaction, user):
+        return reaction.message.id == message.id and reaction.emoji in ["⏮", "◀", "▶",
+                                                                        "⏭"] and user != client.user
+
+    while True:
+        try:
+            reaction, user = await client.wait_for('reaction_add', timeout=90, check=check)
+            try:
+                await reaction.remove(user)
+            except Exception:
+                pass
+            if reaction.emoji == "⏮":
+                currPage = 0
+            elif reaction.emoji == "◀":
+                currPage = max(currPage - 1, 0)
+            elif reaction.emoji == "▶":
+                currPage = min(currPage + 1, totPage - 1)
+            else:
+                currPage = totPage - 1
+            text = '\n'.join(
+                content[currPage * PER_PAGE: min(len(content), (currPage + 1) * PER_PAGE)])
+            embed = discord.Embed(description=text, color=color)
+            embed.set_author(name=heading)
+            embed.set_footer(text=f"Page {currPage + 1} of {totPage}")
+            await message.edit(embed=embed, content=extra_text)
+
+        except asyncio.TimeoutError:
+            break
 
 
 

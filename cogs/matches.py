@@ -163,8 +163,8 @@ class Matches(commands.Cog):
             await discord_.send_message(ctx, "No-one is challenging you")
             return
         embed = Embed(description=f"Preparing to start the match...", color=Color.green())
-        embed.set_footer(text=f"You can now compete against multiple opponents at a time.\n"
-                              f"Type .round challenge for more info")
+        embed.set_footer(text=f"You can now conduct tournaments using the bot.\n"
+                              f"Type .tournament faq for more info")
         await ctx.send(embed=embed)
 
         data = self.db.get_challenge_info(ctx.guild.id, ctx.author.id)

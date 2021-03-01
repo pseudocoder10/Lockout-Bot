@@ -8,7 +8,7 @@ from discord.ext import commands
 from discord.ext.commands import cooldown, BucketType
 
 from data import dbconn
-from utils import cf_api, discord_, codeforces, updation, elo
+from utils import cf_api, discord_, codeforces, updation, elo, tournament_helper, challonge_api
 from constants import AUTO_UPDATE_TIME, ADMIN_PRIVILEGE_ROLES
 
 
@@ -26,6 +26,7 @@ class Round(commands.Cog):
         self.client = client
         self.db = dbconn.DbConn()
         self.cf = cf_api.CodeforcesAPI()
+        self.api = challonge_api.ChallongeAPI(self.client)
 
     def make_round_embed(self, ctx):
         desc = "Information about Matches related commands! **[use .round <command>]**\n\n"
@@ -129,13 +130,23 @@ class Round(commands.Cog):
                 await discord_.send_message(ctx, f"{i.name} is already in a round!")
                 return
 
-        alts = await discord_.get_alt_response(self.client, ctx, f"{ctx.author.mention} Do you want to add any alts? Type none if not applicable else type `alts: handle_1 handle_2 ...` You can add upto **{min(2*len(users), MAX_ALTS)}** alt(s)", min(2*len(users), MAX_ALTS), 60, ctx.author)
+        alts = await discord_.get_alt_response(self.client, ctx, f"{ctx.author.mention} Do you want to add any alts? Type none if not applicable else type `alts: handle_1 handle_2 ...` You can add upto **{MAX_ALTS}** alt(s)", MAX_ALTS, 60, ctx.author)
 
         if not alts:
             await discord_.send_message(ctx, f"{ctx.author.mention} you took too long to decide")
             return
 
         alts = alts[1]
+
+        tournament = 0
+        if len(users) == 2 and (await tournament_helper.is_a_match(ctx.guild.id, users[0].id, users[1].id, self.api, self.db)):
+            tournament = await discord_.get_time_response(self.client, ctx,
+                                                      f"{ctx.author.mention} this round is a part of the tournament. Do you want the result of this round to be counted in the tournament. Type `1` for yes and `0` for no",
+                                                      30, ctx.author, [0, 1])
+            if not tournament[0]:
+                await discord_.send_message(ctx, f"{ctx.author.mention} you took too long to decide")
+                return
+            tournament = tournament[1]
 
         await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
 
@@ -146,7 +157,7 @@ class Round(commands.Cog):
 
         problems = problems[1]
 
-        self.db.add_to_ongoing_round(ctx, users, rating, points, problems, duration, repeat, alts)
+        self.db.add_to_ongoing_round(ctx, users, rating, points, problems, duration, repeat, alts, tournament)
         round_info = self.db.get_round_info(ctx.guild.id, users[0].id)
 
         await ctx.send(embed=discord_.round_problems_embed(round_info))
@@ -355,6 +366,34 @@ class Round(commands.Cog):
                     embed.add_field(name="Rating changes", value=ratingChange)
                     embed.set_author(name=f"Round over! Final standings")
                     await channel.send(embed=embed)
+
+                    if round_info.tournament == 1:
+                        if ranklist[1].rank == 1:
+                            await discord_.send_message(channel, "Since the round ended in a draw, you will have to compete again for it to be counted in the tournament")
+                        else:
+                            res = await tournament_helper.validate_match(round_info.guild, ranklist[0].id, ranklist[1].id, self.api, self.db)
+                            if not res[0]:
+                                await discord_.send_message(channel, res[1] + "\n\nIf you think this is a mistake, type `.tournament forcewin <handle>` to grant victory to a user")
+                            else:
+                                scores = f"{ranklist[0].points}-{ranklist[1].points}" if res[1]['player1'] == res[1][
+                                    ranklist[0].id] else f"{ranklist[1].points}-{ranklist[0].points}"
+                                match_resp = await self.api.post_match_results(res[1]['tournament_id'], res[1]['match_id'], scores, res[1][ranklist[0].id])
+                                if not match_resp or 'errors' in match_resp:
+                                    await discord_.send_message(channel, "Some error occurred while validating tournament match. \n\nType `.tournament forcewin <handle>` to grant victory to a user manually")
+                                    if match_resp and 'errors' in match_resp:
+                                        logging_channel = await self.client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))
+                                        await logging_channel.send(f"Error while validating tournament rounds: {match_resp['errors']}")
+                                    continue
+                                winner_handle = self.db.get_handle(round_info.guild, ranklist[0].id)
+                                await discord_.send_message(channel, f"Congrats **{winner_handle}** for qualifying to the next round.\n\nTo view the list of future tournament rounds, type `.tournament matches`")
+                                if await tournament_helper.validate_tournament_completion(round_info.guild, self.api, self.db):
+                                    await self.api.finish_tournament(res[1]['tournament_id'])
+                                    await asyncio.sleep(3)
+                                    winner_handle = await tournament_helper.get_winner(res[1]['tournament_id'], self.api)
+                                    await channel.send(embed=tournament_helper.tournament_over_embed(round_info.guild, winner_handle, self.db))
+                                    self.db.add_to_finished_tournaments(self.db.get_tournament_info(round_info.guild), winner_handle)
+                                    self.db.delete_tournament(round_info.guild)
+
             except Exception as e:
                 logging_channel = await self.client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))
                 await logging_channel.send(f"Error while updating rounds: {str(traceback.format_exc())}")
@@ -451,12 +490,20 @@ class Round(commands.Cog):
             if self.db.in_a_round(ctx.guild.id, i.id):
                 await discord_.send_message(ctx, f"{i.name} is already in a round!")
                 return
-
-        await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
-
         rating = [problem.rating for problem in problems]
 
-        self.db.add_to_ongoing_round(ctx, users, rating, points, problems, duration, 0, [])
+        tournament = 0
+        if len(users) == 2 and (await tournament_helper.is_a_match(ctx.guild.id, users[0].id, users[1].id, self.api, self.db)):
+            tournament = await discord_.get_time_response(self.client, ctx,
+                                                          f"{ctx.author.mention} this round is a part of the tournament. Do you want the result of this round to be counted in the tournament. Type `1` for yes and `0` for no",
+                                                          30, ctx.author, [0, 1])
+            if not tournament[0]:
+                await discord_.send_message(ctx, f"{ctx.author.mention} you took too long to decide")
+                return
+            tournament = tournament[1]
+
+        await ctx.send(embed=discord.Embed(description="Starting the round...", color=discord.Color.green()))
+        self.db.add_to_ongoing_round(ctx, users, rating, points, problems, duration, 0, [], tournament)
         round_info = self.db.get_round_info(ctx.guild.id, users[0].id)
 
         await ctx.send(embed=discord_.round_problems_embed(round_info))
