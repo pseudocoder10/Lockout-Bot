@@ -1,5 +1,6 @@
 import json
 import random
+import math
 
 from utils import cf_api
 from data import dbconn
@@ -77,8 +78,9 @@ async def find_problems(handles, ratings):
     for x in ratings:
         problem = None
         options = [p for p in unsolved_problems if p.rating == x and p not in selected]
+        weights = [int(p.id * math.sqrt(p.id)) for p in options]
         if options:
-            problem = random.choice(options)
+            problem = random.choices(options, weights, k=1)[0]
         if not problem:
             return [False, f"Not enough problems with rating {x} left!"]
         selected.append(problem)
