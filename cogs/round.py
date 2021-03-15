@@ -368,16 +368,20 @@ class Round(commands.Cog):
                     await channel.send(embed=embed)
 
                     if round_info.tournament == 1:
-                        if ranklist[1].rank == 1:
+                        tournament_info = self.db.get_tournament_info(round_info.guild)
+                        if not tournament_info or tournament_info.status != 2:
+                            continue
+                        if ranklist[1].rank == 1 and tournament_info.type != 2:
                             await discord_.send_message(channel, "Since the round ended in a draw, you will have to compete again for it to be counted in the tournament")
                         else:
                             res = await tournament_helper.validate_match(round_info.guild, ranklist[0].id, ranklist[1].id, self.api, self.db)
                             if not res[0]:
                                 await discord_.send_message(channel, res[1] + "\n\nIf you think this is a mistake, type `.tournament forcewin <handle>` to grant victory to a user")
                             else:
+                                draw = True if ranklist[1].rank == 1 else False
                                 scores = f"{ranklist[0].points}-{ranklist[1].points}" if res[1]['player1'] == res[1][
                                     ranklist[0].id] else f"{ranklist[1].points}-{ranklist[0].points}"
-                                match_resp = await self.api.post_match_results(res[1]['tournament_id'], res[1]['match_id'], scores, res[1][ranklist[0].id])
+                                match_resp = await self.api.post_match_results(res[1]['tournament_id'], res[1]['match_id'], scores, res[1][ranklist[0].id] if not draw else "tie")
                                 if not match_resp or 'errors' in match_resp:
                                     await discord_.send_message(channel, "Some error occurred while validating tournament match. \n\nType `.tournament forcewin <handle>` to grant victory to a user manually")
                                     if match_resp and 'errors' in match_resp:
@@ -385,7 +389,7 @@ class Round(commands.Cog):
                                         await logging_channel.send(f"Error while validating tournament rounds: {match_resp['errors']}")
                                     continue
                                 winner_handle = self.db.get_handle(round_info.guild, ranklist[0].id)
-                                await discord_.send_message(channel, f"Congrats **{winner_handle}** for qualifying to the next round.\n\nTo view the list of future tournament rounds, type `.tournament matches`")
+                                await discord_.send_message(channel, f"{f'Congrats **{winner_handle}** for qualifying to the next round. :tada:' if not draw else 'The round ended in a draw!'}\n\nTo view the list of future tournament rounds, type `.tournament matches`")
                                 if await tournament_helper.validate_tournament_completion(round_info.guild, self.api, self.db):
                                     await self.api.finish_tournament(res[1]['tournament_id'])
                                     await asyncio.sleep(3)

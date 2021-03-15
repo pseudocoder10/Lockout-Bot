@@ -370,8 +370,7 @@ class Tournament(commands.Cog):
             await discord_.send_message(ctx, "There is no ongoing tournament in the server currently")
             return
         if tournament_info.status != 2:
-            await discord_.send_message(ctx,
-                                        "The tournament has not begun yet, type `.tournament begin` to start the tournament")
+            await discord_.send_message(ctx, "The tournament has not begun yet, type `.tournament begin` to start the tournament")
             return
 
         registrants = self.db.get_registrants(ctx.guild.id)
@@ -396,17 +395,27 @@ class Tournament(commands.Cog):
             return
 
         match_id = None
+        player1_id = None
         for match in matches_resp:
             if match['match']['state'] != 'open':
                 continue
             if match['match']['player1_id'] == challonge_id or match['match']['player2_id'] == challonge_id:
                 match_id = match['match']['id']
+                player1_id = match['match']['player1_id']
+                break
 
         if not match_id:
             await discord_.send_message(ctx, f"Couldn't find a match for handle `{handle}`")
             return
 
-        resp = await self.api.post_match_results(tournament_info.id, match_id, "0-0", challonge_id)
+        scores = await discord_.get_seq_response(self.client, ctx, f"{ctx.author.mention} enter 2 space seperated integers denoting the scores of winner and loser respectively", 30, 2, ctx.author, [0, 10000])
+        if not scores[0]:
+            return
+
+        if challonge_id != player1_id:
+            scores[1][0], scores[1][1] = scores[1][1], scores[1][0]
+
+        resp = await self.api.post_match_results(tournament_info.id, match_id, f"{scores[1][0]}-{scores[1][1]}", challonge_id)
         if not resp or 'errors' in resp:
             await discord_.send_message(ctx, "Some error occurred, try again later")
             if resp and 'errors' in resp:
@@ -420,6 +429,90 @@ class Tournament(commands.Cog):
                 await self.api.finish_tournament(tournament_info.id)
                 winner_handle = await tournament_helper.get_winner(tournament_info.id, self.api)
                 await ctx.send(embed=tournament_helper.tournament_over_embed(tournament_info.guild, winner_handle, self.db))
+                self.db.delete_tournament(tournament_info.guild)
+                self.db.add_to_finished_tournaments(tournament_info, winner_handle)
+
+    @tournament.command(name="forcedraw", brief="Force draw a match (Swiss only)")
+    @commands.cooldown(1, 10, BucketType.user)
+    async def forcedraw(self, ctx, *, handle: str):
+        if not discord_.has_admin_privilege(ctx):
+            await discord_.send_message(ctx,
+                                        f"{ctx.author.mention} you require 'manage server' permission or one of the "
+                                        f"following roles: {', '.join(ADMIN_PRIVILEGE_ROLES)} to use this command")
+            return
+
+        tournament_info = self.db.get_tournament_info(ctx.guild.id)
+
+        if not tournament_info:
+            await discord_.send_message(ctx, "There is no ongoing tournament in the server currently")
+            return
+        if tournament_info.status != 2:
+            await discord_.send_message(ctx, "The tournament has not begun yet, type `.tournament begin` to start the tournament")
+            return
+
+        if tournament_info.type != 2:
+            await discord_.send_message(ctx, "This command can only be used for swiss tournaments")
+            return
+
+        registrants = self.db.get_registrants(ctx.guild.id)
+        challonge_id = None
+
+        for user in registrants:
+            if user.handle.lower() == handle.lower():
+                challonge_id = user.challonge_id
+
+        if not challonge_id:
+            await discord_.send_message(ctx, f"User with handle `{handle}` has not registered for the tournament")
+            return
+
+        matches_resp = await self.api.get_tournament_matches(tournament_info.id)
+
+        if not matches_resp or 'errors' in matches_resp:
+            await discord_.send_message(ctx, "Some error occurred, try again later")
+            if matches_resp and 'errors' in matches_resp:
+                logging_channel = await self.client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))
+                await logging_channel.send(
+                    f"Error in forcewin match fetching: {ctx.guild.id} {matches_resp['errors']}")
+            return
+
+        match_id = None
+        player1_id = None
+        for match in matches_resp:
+            if match['match']['state'] != 'open':
+                continue
+            if match['match']['player1_id'] == challonge_id or match['match']['player2_id'] == challonge_id:
+                match_id = match['match']['id']
+                player1_id = match['match']['player1_id']
+                break
+
+        if not match_id:
+            await discord_.send_message(ctx, f"Couldn't find a match for handle `{handle}`")
+            return
+
+        scores = await discord_.get_seq_response(self.client, ctx,
+                                                 f"{ctx.author.mention} enter 2 space seperated integers denoting the scores of the players",
+                                                 30, 2, ctx.author, [0, 10000])
+        if not scores[0]:
+            return
+
+        if challonge_id != player1_id:
+            scores[1][0], scores[1][1] = scores[1][1], scores[1][0]
+
+        resp = await self.api.post_match_results(tournament_info.id, match_id, f"{scores[1][0]}-{scores[1][1]}", "tie")
+        if not resp or 'errors' in resp:
+            await discord_.send_message(ctx, "Some error occurred, try again later")
+            if resp and 'errors' in resp:
+                logging_channel = await self.client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))
+                await logging_channel.send(
+                    f"Error in forcedraw match score reporting: {ctx.guild.id} {resp['errors']}")
+        else:
+            await discord_.send_message(ctx, f"Match involving `{handle}` has been drawn")
+
+            if await tournament_helper.validate_tournament_completion(tournament_info.guild, self.api, self.db):
+                await self.api.finish_tournament(tournament_info.id)
+                winner_handle = await tournament_helper.get_winner(tournament_info.id, self.api)
+                await ctx.send(
+                    embed=tournament_helper.tournament_over_embed(tournament_info.guild, winner_handle, self.db))
                 self.db.delete_tournament(tournament_info.guild)
                 self.db.add_to_finished_tournaments(tournament_info, winner_handle)
 

@@ -29,7 +29,7 @@ async def send_message(ctx, message):
 
 
 async def get_time_response(client, ctx, message, time, author, range_):
-    original = await ctx.send(message)
+    original = await ctx.send(embed=discord.Embed(description=message, color=discord.Color.green()))
 
     def check(m):
         if not m.content.isdigit() or not m.author == author:
@@ -48,7 +48,7 @@ async def get_time_response(client, ctx, message, time, author, range_):
 
 
 async def get_seq_response(client, ctx, message, time, length, author, range_):
-    original = await ctx.send(message)
+    original = await ctx.send(embed=discord.Embed(description=message, color=discord.Color.green()))
 
     def check(m):
         if m.author != author:
@@ -73,7 +73,7 @@ async def get_seq_response(client, ctx, message, time, length, author, range_):
 
 
 async def get_alt_response(client, ctx, message, limit, time, author):
-    original = await ctx.send(message)
+    original = await ctx.send(embed=discord.Embed(description=message, color=discord.Color.green()))
 
     async def check(m):
         if m.author != author:
@@ -111,7 +111,7 @@ async def get_alt_response(client, ctx, message, limit, time, author):
 
 
 async def get_problems_response(client, ctx, message, time, length, author):
-    original = await ctx.send(message)
+    original = await ctx.send(embed=discord.Embed(description=message, color=discord.Color.green()))
 
     def check(m):
         if m.author != author:

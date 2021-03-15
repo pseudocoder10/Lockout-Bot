@@ -74,7 +74,7 @@ def tournament_over_embed(guild, winner, db: dbconn.DbConn):
 
     desc = f"The tournament has successfully completed! Congrats to **{winner}** for winning the tournament :tada:\n\n"
     desc += f"Number of participants: **{len(db.get_registrants(guild))}**\n"
-    desc += f"Tournament tye: **{['Single Elimination', 'Double Elimination', 'Swiss'][tournament_info.type]}**\n"
+    desc += f"Tournament type: **{['Single Elimination', 'Double Elimination', 'Swiss'][tournament_info.type]}**\n"
     desc += f"View complete results [here](https://challonge.com/{tournament_info.url})"
 
     embed = discord.Embed(description=desc, color=discord.Color.green())
