@@ -90,7 +90,7 @@ class Handles(commands.Cog):
             color=Color(cf_colors[rank.lower()]))
         embed.add_field(name='Rank', value=f'{rank}', inline=True)
         embed.add_field(name='Rating', value=f'{rating}', inline=True)
-        embed.set_thumbnail(url=f"https:{data['titlePhoto']}")
+        embed.set_thumbnail(url=f"{data['titlePhoto']}")
         await ctx.send(embed=embed)
 
     @handle.command(brief="Remove someone's handle (Admin/Mod/Lockout Manager only)")
@@ -148,7 +148,7 @@ class Handles(commands.Cog):
             color=Color(cf_colors[rank.lower()]))
         embed.add_field(name='Rank', value=f'{rank}', inline=True)
         embed.add_field(name='Rating', value=f'{rating}', inline=True)
-        embed.set_thumbnail(url=f"https:{data['titlePhoto']}")
+        embed.set_thumbnail(url=f"{data['titlePhoto']}")
         await ctx.send(embed=embed)
 
     @identify.error
@@ -183,7 +183,7 @@ class Handles(commands.Cog):
             color=Color(cf_colors[rank.lower()]))
         embed.add_field(name='Rank', value=f'{rank}', inline=True)
         embed.add_field(name='Rating', value=f'{rating}', inline=True)
-        embed.set_thumbnail(url=f"https:{data['titlePhoto']}")
+        embed.set_thumbnail(url=f"{data['titlePhoto']}")
         await ctx.send(embed=embed)
 
     @handle.command(brief="Get handle list")
