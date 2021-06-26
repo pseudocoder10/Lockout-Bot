@@ -15,7 +15,13 @@ class CodeforcesAPI:
                 while tries < 5:
                     tries += 1
                     async with session.get(url, params=params) as resp:
-                        response = await resp.json()
+                        response = {}
+                        if resp.status == 503:
+                            response['status'] = "FAILED"
+                            response['comment'] = "limit exceeded"
+                        else:
+                            response = await resp.json()
+
                         if response['status'] == 'FAILED' and 'limit exceeded' in response['comment'].lower():
                             await asyncio.sleep(1)
                         else:
