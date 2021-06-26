@@ -15,6 +15,13 @@ db = dbconn.DbConn()
 cf = cf_api.CodeforcesAPI()
 
 
+class DummyUser:
+    def __init__(self, id):
+        self.id = id
+        self.name = "**DummyName**"
+        self.mention = "**DummyUser**"
+
+
 def has_admin_privilege(ctx):
     if ctx.channel.permissions_for(ctx.author).manage_guild:
         return True
@@ -26,6 +33,14 @@ def has_admin_privilege(ctx):
 
 async def send_message(ctx, message):
     await ctx.send(embed=discord.Embed(description=message, color=discord.Color.gold()))
+
+
+async def fetch_member(guild, id):
+    try:
+        member = await guild.fetch_member(id)
+        return member
+    except Exception:
+        return DummyUser(id)
 
 
 async def get_time_response(client, ctx, message, time, author, range_):

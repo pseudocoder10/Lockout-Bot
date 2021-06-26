@@ -102,6 +102,9 @@ class Handles(commands.Cog):
         if not self.db.get_handle(ctx.guild.id, member.id):
             await discord_.send_message(ctx, f"Handle for {member.mention} not set")
             return
+        if self.db.in_a_round(ctx.guild.id, member.id) or self.db.in_a_match(ctx.guild.id, member.id):
+            await discord_.send_message(ctx, f"{member.mention} is currently in a match/round. Try again later")
+            return
 
         self.db.remove_handle(ctx.guild.id, member.id)
         await ctx.send(
@@ -195,7 +198,7 @@ class Handles(commands.Cog):
         data1 = []
         for x in data:
             try:
-                data1.append([(await ctx.guild.fetch_member(int(x[1]))).name, x[2], x[3]])
+                data1.append([(await discord_.fetch_member(ctx.guild, int(x[1]))).name, x[2], x[3]])
             except Exception as e:
                 pass
         data = data1

@@ -328,12 +328,12 @@ class Round(commands.Cog):
                 channel = self.client.get_channel(round.channel)
 
                 if resp[2] or resp[1]:
-                    await channel.send(f"{' '.join([(await ctx.guild.fetch_member(int(m))).mention for m in round.users.split()])} there is an update in standings")
+                    await channel.send(f"{' '.join([(await discord_.fetch_member(ctx.guild, int(m))).mention for m in round.users.split()])} there is an update in standings")
 
                 for i in range(len(resp[0])):
                     if len(resp[0][i]):
                         await channel.send(embed=discord.Embed(
-                            description=f"{' '.join([(await ctx.guild.fetch_member(m)).mention for m in resp[0][i]])} has solved problem worth **{round.points.split()[i]}** points",
+                            description=f"{' '.join([(await discord_.fetch_member(ctx.guild, m)).mention for m in resp[0][i]])} has solved problem worth **{round.points.split()[i]}** points",
                             color=discord.Color.blue()))
 
                 if not resp[1] and resp[2]:
@@ -345,7 +345,7 @@ class Round(commands.Cog):
                     ranklist = updation.round_score(list(map(int, round_info.users.split())),
                                            list(map(int, round_info.status.split())),
                                            list(map(int, round_info.times.split())))
-                    eloChanges = elo.calculateChanges([[(await ctx.guild.fetch_member(user.id)), user.rank, self.db.get_match_rating(round_info.guild, user.id)[-1]] for user in ranklist])
+                    eloChanges = elo.calculateChanges([[(await discord_.fetch_member(ctx.guild, user.id)), user.rank, self.db.get_match_rating(round_info.guild, user.id)[-1]] for user in ranklist])
 
                     for id in list(map(int, round_info.users.split())):
                         self.db.add_rating_update(round_info.guild, id, eloChanges[id][0])

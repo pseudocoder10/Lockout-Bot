@@ -31,13 +31,14 @@ async def update_matches(client):
             resp = resp[1]
             channel = client.get_channel(match.channel)
             if resp[1] or len(resp[0]) > 0:
-                mem1, mem2 = await guild.fetch_member(match.p1_id), await guild.fetch_member(match.p2_id)
+                mem1, mem2 = await discord_.fetch_member(guild, match.p1_id), \
+                             await discord_.fetch_member(guild, match.p2_id)
                 await channel.send(
                     f"{mem1.mention} {mem2.mention}, there is an update in standings!")
 
             for x in resp[0]:
                 await channel.send(embed=discord.Embed(
-                    description=f"{' '.join([(await guild.fetch_member(m)).mention for m in x[1]])} has solved problem worth {x[0] * 100} points",
+                    description=f"{' '.join([(await discord_.fetch_member(guild, m)).mention for m in x[1]])} has solved problem worth {x[0] * 100} points",
                     color=discord.Color.blue()))
 
             if not resp[1] and len(resp[0]) > 0:
@@ -48,9 +49,9 @@ async def update_matches(client):
                 a, b = updation.match_score(resp[2])
                 p1_rank, p2_rank = 1 if a >= b else 2, 1 if b >= a else 2
                 ranklist = []
-                ranklist.append([await guild.fetch_member(match.p1_id), p1_rank,
+                ranklist.append([await discord_.fetch_member(guild, match.p1_id), p1_rank,
                                  db.get_match_rating(guild.id, match.p1_id)[-1]])
-                ranklist.append([await guild.fetch_member(match.p2_id), p2_rank,
+                ranklist.append([await discord_.fetch_member(guild, match.p2_id), p2_rank,
                                  db.get_match_rating(guild.id, match.p2_id)[-1]])
                 ranklist = sorted(ranklist, key=itemgetter(1))
                 res = elo.calculateChanges(ranklist)
@@ -94,12 +95,12 @@ async def update_rounds(client):
 
             if resp[2] or resp[1]:
                 await channel.send(
-                    f"{' '.join([(await guild.fetch_member(int(m))).mention for m in round.users.split()])} there is an update in standings")
+                    f"{' '.join([(await discord_.fetch_member(guild, int(m))).mention for m in round.users.split()])} there is an update in standings")
 
             for i in range(len(resp[0])):
                 if len(resp[0][i]):
                     await channel.send(embed=discord.Embed(
-                        description=f"{' '.join([(await guild.fetch_member(m)).mention for m in resp[0][i]])} has solved problem worth **{round.points.split()[i]}** points",
+                        description=f"{' '.join([(await discord_.fetch_member(guild, m)).mention for m in resp[0][i]])} has solved problem worth **{round.points.split()[i]}** points",
                         color=discord.Color.blue()))
 
             if not resp[1] and resp[2]:
@@ -111,7 +112,7 @@ async def update_rounds(client):
                 ranklist = updation.round_score(list(map(int, round_info.users.split())),
                                                 list(map(int, round_info.status.split())),
                                                 list(map(int, round_info.times.split())))
-                eloChanges = elo.calculateChanges([[(await guild.fetch_member(user.id)), user.rank,
+                eloChanges = elo.calculateChanges([[(await discord_.fetch_member(guild, user.id)), user.rank,
                                                     db.get_match_rating(round_info.guild, user.id)[-1]] for user in
                                                    ranklist])
 

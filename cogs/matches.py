@@ -201,7 +201,7 @@ class Matches(commands.Cog):
             await discord_.send_message(ctx, f"User {ctx.author.mention} is not in a match.")
             return
         match_info = self.db.get_match_info(ctx.guild.id, ctx.author.id)
-        opponent = await ctx.guild.fetch_member(match_info.p1_id if match_info.p1_id != ctx.author.id else match_info.p2_id)
+        opponent = await discord_.fetch_member(ctx.guild, match_info.p1_id if match_info.p1_id != ctx.author.id else match_info.p2_id)
         await ctx.send(f"{opponent.mention} you opponent {ctx.author.mention} has proposed to forfeit the match, type `yes` within 30 seconds to accept")
 
         try:
@@ -336,12 +336,13 @@ class Matches(commands.Cog):
                 resp = resp[1]
                 channel = self.client.get_channel(match.channel)
                 if resp[1] or len(resp[0]) > 0:
-                    mem1, mem2 = await ctx.guild.fetch_member(match.p1_id), await ctx.guild.fetch_member(match.p2_id)
+                    mem1, mem2 = await discord_.fetch_member(ctx.guild, match.p1_id), \
+                                 await discord_.fetch_member(ctx.guild, match.p2_id)
                     await channel.send(f"{mem1.mention} {mem2.mention}, there is an update in standings!")
 
                 for x in resp[0]:
                     await channel.send(embed=discord.Embed(
-                        description=f"{' '.join([(await ctx.guild.fetch_member(m)).mention for m in x[1]])} has solved problem worth {x[0]*100} points",
+                        description=f"{' '.join([(await discord_.fetch_member(ctx.guild, m)).mention for m in x[1]])} has solved problem worth {x[0]*100} points",
                         color=discord.Color.blue()))
 
                 if not resp[1] and len(resp[0]) > 0:
@@ -351,8 +352,8 @@ class Matches(commands.Cog):
                     a, b = updation.match_score(resp[2])
                     p1_rank, p2_rank = 1 if a >= b else 2, 1 if b >= a else 2
                     ranklist = []
-                    ranklist.append([await ctx.guild.fetch_member(match.p1_id), p1_rank, self.db.get_match_rating(ctx.guild.id, match.p1_id)[-1]])
-                    ranklist.append([await ctx.guild.fetch_member(match.p2_id), p2_rank, self.db.get_match_rating(ctx.guild.id, match.p2_id)[-1]])
+                    ranklist.append([await discord_.fetch_member(ctx.guild, match.p1_id), p1_rank, self.db.get_match_rating(ctx.guild.id, match.p1_id)[-1]])
+                    ranklist.append([await discord_.fetch_member(ctx.guild, match.p2_id), p2_rank, self.db.get_match_rating(ctx.guild.id, match.p2_id)[-1]])
                     ranklist = sorted(ranklist, key=itemgetter(1))
                     res = elo.calculateChanges(ranklist)
 
@@ -464,7 +465,7 @@ class Matches(commands.Cog):
         data = []
         for x in res:
             try:
-                data.append([(await ctx.guild.fetch_member(x[0])).name, str(x[1])])
+                data.append([(await discord_.fetch_member(ctx.guild, x[0])).name, str(x[1])])
             except Exception:
                 pass
         await paginator.Paginator(data, ["User", "Rating"], f"Match Ratings", 10).paginate(ctx, self.client)
