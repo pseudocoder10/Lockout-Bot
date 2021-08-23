@@ -19,7 +19,6 @@ logging_channel = None
 
 @client.event
 async def on_ready():
-    print('bot started')
     await client.change_presence(activity=discord.Game(name="in matches ⚔️"))
     global logging_channel
     logging_channel = await client.fetch_channel(os.environ.get("LOGGING_CHANNEL"))

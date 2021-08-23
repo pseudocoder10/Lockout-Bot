@@ -23,8 +23,6 @@ RESPONSE_WAIT_TIME = 30
 ONGOING_PER_PAGE = 10
 RECENT_PER_PAGE = 5
 
-print(1)
-
 async def plot_graph(ctx, data, handle):
     x_axis, y_axis = [], []
     for i in range(0, len(data)):
