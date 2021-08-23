@@ -23,6 +23,7 @@ RESPONSE_WAIT_TIME = 30
 ONGOING_PER_PAGE = 10
 RECENT_PER_PAGE = 5
 
+print(1)
 
 async def plot_graph(ctx, data, handle):
     x_axis, y_axis = [], []
@@ -210,6 +211,25 @@ class Matches(commands.Cog):
             await ctx.send(embed=discord.Embed(description=f"{ctx.author.mention} {opponent.mention}, match has been invalidated", color=discord.Color.green()))
         except asyncio.TimeoutError:
             await ctx.send(f"{ctx.author.mention} your opponent didn't respond in time")
+
+    
+    @match.command(brief = "Draw your current match")
+    async def draw(self,ctx):
+        if not self.db.in_a_match(ctx.guild.id, ctx.author.id):
+            await discord_.send_message(ctx, f"User {ctx.author.mention} is not in a match.")
+            return
+        match_info = self.db.get_match_info(ctx.guild.id, ctx.author.id)
+        opponent = await discord_.fetch_member(ctx.guild, match_info.p1_id if match_info.p1_id != ctx.author.id else match_info.p2_id)
+        await ctx.send(f"{opponent.mention} you opponent {ctx.author.mention} has proposed to draw the match, type `yes` within 30 seconds to accept")
+
+        try:
+            message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == opponent and message.content.lower() == 'yes')
+            self.db.delete_match(ctx.guild.id, ctx.author.id)
+            await ctx.send(embed=discord.Embed(description=f"{ctx.author.mention} {opponent.mention}, match has been draw", color=discord.Color.green()))
+        except asyncio.TimeoutError:
+            await ctx.send(f"{ctx.author.mention} your opponent didn't respond in time")
+
+      
 
     @match.command(brief="Display ongoing matches")
     async def ongoing(self, ctx):
