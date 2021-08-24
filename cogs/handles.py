@@ -74,6 +74,15 @@ class Handles(commands.Cog):
         if self.db.get_handle(ctx.guild.id, member.id):
             await discord_.send_message(ctx, f"Handle for user {member.mention} already set to {self.db.get_handle(ctx.guild.id, member.id)}")
             return
+        
+        # 2 discord users setting same handle
+        handles = list(filter(lambda x: x[2] == handle, self.db.get_all_handles(ctx.guild.id)))
+        if len(handles):
+            handle_user = await discord_.fetch_member(ctx.guild,handles[0][1])
+            print(handle_user)
+            await discord_.send_message(ctx, f"{member.mention} Handle {handle} is already in use by {handle_user.mention}")
+            return
+
 
         # all conditions met
         data = data[1]
