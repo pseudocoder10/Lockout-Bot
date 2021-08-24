@@ -223,11 +223,22 @@ class Matches(commands.Cog):
         try:
             message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == opponent and message.content.lower() == 'yes')
             self.db.delete_match(ctx.guild.id, ctx.author.id)
-            await ctx.send(embed=discord.Embed(description=f"{ctx.author.mention} {opponent.mention}, match has been draw", color=discord.Color.green()))
+            self.db.add_to_finished(match_info, "draw")
+            channel = self.client.get_channel(match_info.channel)
+            embed = discord.Embed(color=discord.Color.green())
+            pos, name, ratingChange = '', '', ''
+            players = [ctx.author,opponent]
+            for player in players:
+                pos += f"{':first_place:'}\n"
+                name += f"{player.mention}\n"
+                ratingChange += f"{self.db.get_match_rating(ctx.guild.id, player.id)[-1]}+0\n"
+            embed.add_field(name="Position", value=pos)
+            embed.add_field(name="User", value=name)
+            embed.add_field(name="Rating changes", value=ratingChange)
+            embed.set_author(name=f"Mutual draw! Final standings\nScore: 0-0")
+            await channel.send(embed=embed)
         except asyncio.TimeoutError:
             await ctx.send(f"{ctx.author.mention} your opponent didn't respond in time")
-
-      
 
     @match.command(brief="Display ongoing matches")
     async def ongoing(self, ctx):
