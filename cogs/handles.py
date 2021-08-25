@@ -130,15 +130,17 @@ class Handles(commands.Cog):
             await discord_.send_message(ctx, data[1])
             ctx.command.reset_cooldown(ctx)
             return
+        
+        data = data[1]
+        handle = data['handle']
+        
         # 2 discord users setting same handle
         handles = list(filter(lambda x: x[2] == handle, self.db.get_all_handles(ctx.guild.id)))
         if len(handles):
             handle_user = await discord_.fetch_member(ctx.guild,handles[0][1])
             await discord_.send_message(ctx, f"{ctx.author.mention} Handle {handle} is already in use by {handle_user.mention}")
             return
-
-        data = data[1]
-        handle = data['handle']
+        
         res = ''.join(random.choices(string.ascii_uppercase + string.digits, k=15))
         await discord_.send_message(ctx,
                            f"Please change your first name on this [link](https://codeforces.com/settings/social) to "
