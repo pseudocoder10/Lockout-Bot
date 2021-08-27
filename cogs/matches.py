@@ -205,7 +205,7 @@ class Matches(commands.Cog):
         await ctx.send(f"{opponent.mention} you opponent {ctx.author.mention} has proposed to forfeit the match, type `yes` within 30 seconds to accept")
 
         try:
-            message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == opponent and message.content.lower() == 'yes')
+            message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == opponent and message.content.lower() == 'yes' and message.channel.id == ctx.channel.id)
             self.db.delete_match(ctx.guild.id, ctx.author.id)
             await ctx.send(embed=discord.Embed(description=f"{ctx.author.mention} {opponent.mention}, match has been invalidated", color=discord.Color.green()))
         except asyncio.TimeoutError:
@@ -224,7 +224,7 @@ class Matches(commands.Cog):
 
         try:
             message = await self.client.wait_for('message', timeout=30, check=lambda
-                message: message.author == opponent and message.content.lower() == 'yes')
+                message: message.author == opponent and message.content.lower() == 'yes' and message.channel.id == ctx.channel.id)
             channel = self.client.get_channel(match.channel)
             a, b = updation.match_score("00000")
             p1_rank, p2_rank = 1 if a >= b else 2, 1 if b >= a else 2
