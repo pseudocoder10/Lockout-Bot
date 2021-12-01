@@ -205,9 +205,53 @@ class Matches(commands.Cog):
         await ctx.send(f"{opponent.mention} you opponent {ctx.author.mention} has proposed to forfeit the match, type `yes` within 30 seconds to accept")
 
         try:
-            message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == opponent and message.content.lower() == 'yes')
+            message = await self.client.wait_for('message', timeout=30, check=lambda message: message.author == opponent and message.content.lower() == 'yes' and message.channel.id == ctx.channel.id)
             self.db.delete_match(ctx.guild.id, ctx.author.id)
             await ctx.send(embed=discord.Embed(description=f"{ctx.author.mention} {opponent.mention}, match has been invalidated", color=discord.Color.green()))
+        except asyncio.TimeoutError:
+            await ctx.send(f"{ctx.author.mention} your opponent didn't respond in time")
+
+    @match.command(brief="Draw your current match")
+    async def draw(self, ctx):
+        if not self.db.in_a_match(ctx.guild.id, ctx.author.id):
+            await discord_.send_message(ctx, f"User {ctx.author.mention} is not in a match.")
+            return
+        match = self.db.get_match_info(ctx.guild.id, ctx.author.id)
+        opponent = await discord_.fetch_member(ctx.guild,
+                                               match.p1_id if match.p1_id != ctx.author.id else match.p2_id)
+        await ctx.send(
+            f"{opponent.mention} you opponent {ctx.author.mention} has proposed to draw the match, type `yes` within 30 seconds to accept")
+
+        try:
+            message = await self.client.wait_for('message', timeout=30, check=lambda
+                message: message.author == opponent and message.content.lower() == 'yes' and message.channel.id == ctx.channel.id)
+            channel = self.client.get_channel(match.channel)
+            a, b = updation.match_score("00000")
+            p1_rank, p2_rank = 1 if a >= b else 2, 1 if b >= a else 2
+            ranklist = []
+            ranklist.append([await discord_.fetch_member(ctx.guild, match.p1_id), p1_rank,
+                                 self.db.get_match_rating(ctx.guild.id, match.p1_id)[-1]])
+            ranklist.append([await discord_.fetch_member(ctx.guild, match.p2_id), p2_rank,
+                                 self.db.get_match_rating(ctx.guild.id, match.p2_id)[-1]])
+            ranklist = sorted(ranklist, key=itemgetter(1))
+            res = elo.calculateChanges(ranklist)
+
+            self.db.add_rating_update(ctx.guild.id, match.p1_id, res[match.p1_id][0])
+            self.db.add_rating_update(ctx.guild.id, match.p2_id, res[match.p2_id][0])
+            self.db.delete_match(match.guild, match.p1_id)
+            self.db.add_to_finished(match, "00000")
+
+            embed = discord.Embed(color=discord.Color.dark_magenta())
+            pos, name, ratingChange = '', '', ''
+            for user in ranklist:
+                pos += f"{':first_place:' if user[1] == 1 else ':second_place:'}\n"
+                name += f"{user[0].mention}\n"
+                ratingChange += f"{res[user[0].id][0]} (**{'+' if res[user[0].id][1] >= 0 else ''}{res[user[0].id][1]}**)\n"
+            embed.add_field(name="Position", value=pos)
+            embed.add_field(name="User", value=name)
+            embed.add_field(name="Rating changes", value=ratingChange)
+            embed.set_author(name=f"Match over! Final standings\nScore: {a}-{b}")
+            await channel.send(embed=embed)
         except asyncio.TimeoutError:
             await ctx.send(f"{ctx.author.mention} your opponent didn't respond in time")
 
